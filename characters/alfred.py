@@ -3,12 +3,12 @@ class Alfred:
         self.name = "Alfred"
         self.starting_roll = ("D4", "D4")  # Representing 2x D4 dice
         self.deck = [
-            {"name": "Good Start", "bonuses": ["+1", "Reroll"], "keyword": ["Item"], "image_path": "images/good_start.png"},
-            {"name": "Big Stick", "bonuses": ["+4"], "keyword": ["Item"], "image_path": "images/big_stick.png"},
-            {"name": "Pointy Stick", "bonuses": ["+2"], "keyword": ["Item"], "image_path": "images/pointy_stick.png"},
-            {"name": "Adequately Sized Staff", "bonuses": ["+3"], "keyword": ["Item"], "image_path": "images/adequately_sized_staff.png"},
-            {"name": "Note from Mom", "bonuses": ["Reroll Any"], "keyword": ["Item"], "image_path": "images/note_from_mom.png"},
-            {"name": "Note from Dad", "bonuses": ["Reroll Any"], "keyword": ["Item"], "image_path": "images/note_from_dad.png"},
+            {"name": "Good Start", "bonuses": ["D4@2", "Die@4", "Upgrade", "+1", "Reroll"], "keyword": ["Item"], "image_path": "images/good_start.png"},
+            {"name": "Big Stick", "bonuses": ["D4@2", "Die@4", "Upgrade", "+4"], "keyword": ["Item"], "image_path": "images/big_stick.png"},
+            {"name": "Pointy Stick", "bonuses": ["D4@2", "Die@4", "Upgrade", "+2"], "keyword": ["Item"], "image_path": "images/pointy_stick.png"},
+            {"name": "Adequately Sized Staff", "bonuses": ["D4@2", "Die@4", "Upgrade", "+3"], "keyword": ["Item"], "image_path": "images/adequately_sized_staff.png"},
+            {"name": "Note from Mom", "bonuses": ["D4@2", "Die@4", "Upgrade", "Reroll Any"], "keyword": ["Item"], "image_path": "images/note_from_mom.png"},
+            {"name": "Note from Dad", "bonuses": ["D4@2", "Die@4", "Upgrade", "Reroll Any"], "keyword": ["Item"], "image_path": "images/note_from_dad.png"},
             {"name": "Guild Rejection Notice", "bonuses": ["Nope"], "keyword": [], "image_path": "images/guild_rejection_notice.png"},
             {"name": "Skipping Stone", "bonuses": ["D4"], "keyword": ["Item"], "image_path": "images/skipping_stone.png"},
             {"name": "Square Stone", "bonuses": ["D6"], "keyword": ["Item"], "image_path": "images/square_stone.png"},

@@ -162,22 +162,27 @@ class GameEngine:
 
         # Handle bonuses on the card
         for bonus in card.get("bonuses", []):
-            if bonus.startswith("D"):
+            if "Reroll Any" in bonus:
+                test = await self.prompt_reroll(player_name, reroll_any=True)
+                message += test
+            elif "Reroll" in bonus:
+                test = await self.prompt_reroll(player_name, reroll_any=False)
+                message += test
+            elif "Upgrade" in bonus:
+                test = await self.prompt_upgrade_die(player_name)
+                message += test
+            elif "Die@4" in bonus:
+                test = await self.prompt_set_die_value(player_name, 4)
+                message += test
+            elif "D4@2" in bonus:
+                player.dice_in_play.extend([("D4", 2)])
+                bonus = "D4"
+                dice_roll = 2
+                message += f"\n{player_name} added a {bonus} set to {dice_roll}."
+            elif bonus.startswith("D"):
                 dice_roll = self.roll_dice([bonus])
                 player.dice_in_play.extend(dice_roll)
                 message += f"\n{player_name} rolled {bonus} and got {dice_roll}."
-            elif "Reroll Any" in bonus:
-                # You can either automatically reroll a random die or prompt the player to choose a die
-                # Here's an example of rerolling the first die
-                if player.dice_in_play:
-                    test = await self.prompt_reroll(player_name, reroll_any=True)
-                    message += test
-            elif "Reroll" in bonus:
-                # You can either automatically reroll a random die or prompt the player to choose a die
-                # Here's an example of rerolling the first die
-                if player.dice_in_play:
-                    test = await self.prompt_reroll(player_name, reroll_any=False)
-                    message += test
 
         # After playing a card, calculate the new score
         self.calculate_score(player_name)
@@ -242,12 +247,88 @@ class GameEngine:
             new_roll = self.roll_dice([die_to_reroll[0]])[0]  # Rerolling the same type of die
             player.dice_in_play[die_index] = new_roll
 
-            # Optionally update the player's score based on the new roll
-            # player.score = ... (update score logic)
-
             return die_to_reroll[0], new_roll
         except IndexError:
             return "\nInvalid die index."
+
+    async def prompt_upgrade_die(self, player_name):
+        player_requesting = self.players.get(player_name)
+        # Generate a list of upgradeable dice (D4 and D6)
+        upgradeable_dice = []
+        for p_name, p in self.players.items():
+            character_name = p.character.name
+            for idx, (die, value) in enumerate(p.dice_in_play):
+                if die in ["D4", "D6"]:
+                    upgradeable_dice.append(f"{character_name} {idx + 1} - {die}({value})")
+
+        if not upgradeable_dice:
+            await self.send_dm(player_requesting.discord_id, "No dice available to upgrade.")
+            return
+
+        prompt_message = "Choose a die to upgrade (D4 or D6, format: CharacterName DieNumber):\n" + "\n".join(
+            upgradeable_dice)
+        await self.send_dm(player_requesting.discord_id, prompt_message)
+
+        def check(m):
+            return m.author.id == player_requesting.discord_id and m.channel.type == discord.ChannelType.private
+
+        try:
+            response = await self.bot.wait_for('message', check=check, timeout=60.0)
+            selected_character, selected_index = response.content.strip().split()
+            selected_index = int(selected_index) - 1
+
+            # Find the player and upgrade the die
+            selected_player_name = self.get_player_name_by_character(selected_character)
+            selected_player = self.players.get(selected_player_name)
+            die_to_upgrade = selected_player.dice_in_play[selected_index]
+
+            if die_to_upgrade[0] in ["D4", "D6"]:
+                # Upgrade to D8 and increase value by 2
+                selected_player.dice_in_play[selected_index] = ("D8", min(die_to_upgrade[1] + 2, 8))
+                upgrade_message = f"\n{player_name} upgraded {selected_character}'s {die_to_upgrade[0]} to D8 with a new value of {min(die_to_upgrade[1] + 2, 8)}"
+            else:
+                upgrade_message = "Selected die cannot be upgraded."
+
+            return upgrade_message
+
+        except (IndexError, ValueError, asyncio.TimeoutError):
+            await self.send_dm(player_requesting.discord_id, "Invalid selection or timeout.")
+
+    async def prompt_set_die_value(self, player_name, set_value):
+        player_requesting = self.players.get(player_name)
+        # Logic to list all dice
+        dice_list = []
+        for p_name, p in self.players.items():
+            character_name = p.character.name
+            print(p.dice_in_play)
+            for idx, (die, value) in enumerate(p.dice_in_play):
+                dice_list.append(f"{character_name} {idx + 1} - {die}({value})")
+
+        prompt_message = "Choose a die to set to value " + str(
+            set_value) + " (format: CharacterName DieNumber):\n" + "\n".join(dice_list)
+        await self.send_dm(player_requesting.discord_id, prompt_message)
+
+        def check(m):
+            return m.author.id == player_requesting.discord_id and m.channel.type == discord.ChannelType.private
+
+        try:
+            response = await self.bot.wait_for('message', check=check, timeout=60.0)
+            selected_character, selected_index = response.content.strip().split()
+            selected_index = int(selected_index) - 1
+
+            # Find the player and set the die's value
+            selected_player_name = self.get_player_name_by_character(selected_character)
+            selected_player = self.players.get(selected_player_name)
+            if selected_index < len(selected_player.dice_in_play):
+                selected_player.dice_in_play[selected_index] = (
+                selected_player.dice_in_play[selected_index][0], set_value)
+                set_message = f"\n{player_name} set {selected_character}'s {selected_player.dice_in_play[selected_index][0]} to {set_value}."
+            else:
+                set_message = "Invalid die selection."
+
+            return set_message
+        except (IndexError, ValueError, asyncio.TimeoutError):
+            await self.send_dm(player_requesting.discord_id, "Invalid selection or timeout.")
 
     def calculate_score(self, player_name):
         player = self.players.get(player_name)
