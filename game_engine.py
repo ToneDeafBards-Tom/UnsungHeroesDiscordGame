@@ -146,7 +146,7 @@ class GameEngine:
         new_im.save(combined_image_path)
         return combined_image_path
 
-    def play_card(self, player_name, card_number):
+    async def play_card(self, player_name, card_number):
         player = self.players.get(player_name)
         if not player:
             return f"{player_name} is not in the game."
@@ -158,16 +158,98 @@ class GameEngine:
 
         player.cards_in_play.append(card)
 
+        message = f"{player_name} played {card['name']}."
+
         # Handle bonuses on the card
         for bonus in card.get("bonuses", []):
-            if bonus.startswith("+"):
-                player.score += int(bonus[1:])
-            elif bonus.startswith("D"):
+            if bonus.startswith("D"):
                 dice_roll = self.roll_dice([bonus])
                 player.dice_in_play.extend(dice_roll)
-                player.score += sum(value for _, value in dice_roll)
+                message += f"\n{player_name} rolled {bonus} and got {dice_roll}."
+            elif "Reroll Any" in bonus:
+                # You can either automatically reroll a random die or prompt the player to choose a die
+                # Here's an example of rerolling the first die
+                if player.dice_in_play:
+                    test = await self.prompt_reroll(player_name)
+                    print('test', test)
+                    message += test
 
-        return f"{player_name} played {card['name']}."
+        # After playing a card, calculate the new score
+        self.calculate_score(player_name)
+
+        return message
+
+    async def prompt_reroll(self, player_name):
+        player_requesting = self.players.get(player_name)
+        if not player_requesting:
+            await self.send_dm(player_requesting.discord_id, "No dice available to reroll.")
+            return
+
+        # Generate the list of dice with character names
+        dice_list = []
+        for p_name, p in self.players.items():
+            character_name = p.character.name  # Assuming each player has a 'character' attribute with a 'name'
+            for idx, (die, value) in enumerate(p.dice_in_play):
+                dice_list.append(f"{character_name} {idx + 1} - {die}({value})")
+
+        prompt_message = "Choose a die to reroll (format: CharacterName DieNumber):\n" + "\n".join(dice_list)
+        await self.send_dm(player_requesting.discord_id, prompt_message)
+
+        # Wait for player's response in DM
+        def check(m):
+            return m.author.id == player_requesting.discord_id and m.channel.type == discord.ChannelType.private
+
+        try:
+            response = await self.bot.wait_for('message', check=check, timeout=60.0)
+            selected_character, selected_index = response.content.strip().split()
+            selected_index = int(selected_index) - 1
+
+            # Translate character name back to player name
+            selected_player_name = self.get_player_name_by_character(selected_character)
+            rerolled, new_roll = self.reroll_die(selected_player_name, selected_index)
+            return f"\n{player_name} rerolled {selected_character}'s {rerolled} and got {new_roll}."
+        except (IndexError, ValueError, asyncio.TimeoutError):
+            await self.send_dm(player_requesting.discord_id, "Invalid selection or timeout.")
+
+    def get_player_name_by_character(self, character_name):
+        for player_name, player in self.players.items():
+            if player.character.name.lower() == character_name.lower():
+                return player_name
+        return None
+
+    def reroll_die(self, player_name, die_index):
+        player = self.players.get(player_name)
+        if not player:
+            return f"{player_name} is not in the game."
+
+        try:
+            # Retrieve the die to reroll
+            die_to_reroll = player.dice_in_play[die_index]
+
+            # Perform the reroll
+            new_roll = self.roll_dice([die_to_reroll[0]])[0]  # Rerolling the same type of die
+            player.dice_in_play[die_index] = new_roll
+
+            # Optionally update the player's score based on the new roll
+            # player.score = ... (update score logic)
+
+            return die_to_reroll[0], new_roll
+        except IndexError:
+            return "\nInvalid die index."
+
+    def calculate_score(self, player_name):
+        player = self.players.get(player_name)
+        if not player:
+            return
+
+        # Example score calculation logic
+        player.score = sum(value for _, value in player.dice_in_play)
+        for card in player.cards_in_play:
+            # Handle bonuses on the card
+            for bonus in card.get("bonuses", []):
+                if bonus.startswith("+"):
+                    player.score += int(bonus[1:])
+
 
     def display_game_state(self):
         game_state_message = f"Round Number: {self.current_round}\n"
@@ -267,5 +349,7 @@ class GameEngine:
             player.cards_in_play = []
             player.dice_in_play = []
             player.score = 0
+
+
 
 

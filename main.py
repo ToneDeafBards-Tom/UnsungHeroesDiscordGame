@@ -72,7 +72,7 @@ async def start_game(ctx):
 @bot.command(name="play_card")
 async def play_card_command(ctx, card_number: int):
     player_name = ctx.author.name
-    response = game_engine.play_card(player_name, card_number)
+    response = await game_engine.play_card(player_name, card_number)
     await ctx.send(response)
     await game_engine.display_hand(player_name)
     await game_state_command(ctx)
