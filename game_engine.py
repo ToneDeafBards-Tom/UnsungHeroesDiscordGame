@@ -170,8 +170,13 @@ class GameEngine:
                 # You can either automatically reroll a random die or prompt the player to choose a die
                 # Here's an example of rerolling the first die
                 if player.dice_in_play:
-                    test = await self.prompt_reroll(player_name)
-                    print('test', test)
+                    test = await self.prompt_reroll(player_name, reroll_any=True)
+                    message += test
+            elif "Reroll" in bonus:
+                # You can either automatically reroll a random die or prompt the player to choose a die
+                # Here's an example of rerolling the first die
+                if player.dice_in_play:
+                    test = await self.prompt_reroll(player_name, reroll_any=False)
                     message += test
 
         # After playing a card, calculate the new score
@@ -179,7 +184,7 @@ class GameEngine:
 
         return message
 
-    async def prompt_reroll(self, player_name):
+    async def prompt_reroll(self, player_name, reroll_any):
         player_requesting = self.players.get(player_name)
         if not player_requesting:
             await self.send_dm(player_requesting.discord_id, "No dice available to reroll.")
@@ -187,9 +192,16 @@ class GameEngine:
 
         # Generate the list of dice with character names
         dice_list = []
-        for p_name, p in self.players.items():
-            character_name = p.character.name  # Assuming each player has a 'character' attribute with a 'name'
-            for idx, (die, value) in enumerate(p.dice_in_play):
+        if reroll_any:
+            # List all players' dice
+            for p_name, p in self.players.items():
+                character_name = p.character.name
+                for idx, (die, value) in enumerate(p.dice_in_play):
+                    dice_list.append(f"{character_name} {idx + 1} - {die}({value})")
+        else:
+            # List only the requesting player's dice
+            character_name = player_requesting.character.name
+            for idx, (die, value) in enumerate(player_requesting.dice_in_play):
                 dice_list.append(f"{character_name} {idx + 1} - {die}({value})")
 
         prompt_message = "Choose a die to reroll (format: CharacterName DieNumber):\n" + "\n".join(dice_list)

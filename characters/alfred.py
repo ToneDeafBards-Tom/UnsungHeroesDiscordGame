@@ -13,11 +13,11 @@ class Alfred:
             {"name": "Skipping Stone", "bonuses": ["D4"], "keyword": ["Item"], "image_path": "images/skipping_stone.png"},
             {"name": "Square Stone", "bonuses": ["D6"], "keyword": ["Item"], "image_path": "images/square_stone.png"},
             {"name": "Octa Stone", "bonuses": ["D8"], "keyword": ["Item"], "image_path": "images/octa_stone.png"},
-            {"name": "Player Card +5", "bonuses": ["+5"], "keyword": ["Player Card"], "image_path": "images/player_card_5.png"},
-            {"name": "Player Card +6", "bonuses": ["+6"], "keyword": ["Player Card"], "image_path": "images/player_card_6.png"},
-            {"name": "Player Card (D4, D4 +1)", "bonuses": ["D4", "D4", "+1"], "keyword": ["Player Card"], "image_path": "images/player_card_d4.png"},
-            {"name": "Player Card 3x D4", "bonuses": ["D4", "D4", "D4"], "keyword": ["Player Card"], "image_path": "images/player_card_3xd4.png"},
-            {"name": "Player Card +9", "bonuses": ["+9"], "keyword": [" Player Card", "Gold Card"], "image_path": "images/player_card_9.png"}
+            {"name": "Energy In Motion", "bonuses": ["+5"], "keyword": ["Player Card"], "image_path": "images/player_card_5.png"},
+            {"name": "What Goes Up", "bonuses": ["+6"], "keyword": ["Player Card"], "image_path": "images/player_card_6.png"},
+            {"name": "Must Come Down", "bonuses": ["D4", "D4", "+1"], "keyword": ["Player Card"], "image_path": "images/player_card_d4.png"},
+            {"name": "Game Theory", "bonuses": ["D4", "D4", "D4"], "keyword": ["Player Card"], "image_path": "images/player_card_3xd4.png"},
+            {"name": "Physical Physics", "bonuses": ["+9"], "keyword": [" Player Card", "Gold Card"], "image_path": "images/player_card_9.png"}
         ]
         self.ability = "Alfred's Ability: Unique ability description."
 
