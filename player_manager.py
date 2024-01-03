@@ -126,13 +126,6 @@ class PlayerManager:
             # Handle error if player not found
             return f"{player_name}, you need to choose a character first."
 
-    async def draw_treasures(self, round_winner):
-        # Treasure selection process
-        # Assuming two treasures are drawn and one is chosen
-        drawn_treasures = [self.game_engine.treasures.pop() for _ in range(2)]
-        # Implement logic for player to choose one treasure
-        chosen_treasure = await self.player_choose_treasure(round_winner, drawn_treasures)
-        round_winner.treasure.append(chosen_treasure)
 
     async def player_choose_treasure(self, player, treasures):
         treasure_message = "** Choose a Treasure **\n"

@@ -13,6 +13,7 @@ class GameEngine:
         self.player_manager = PlayerManager(self, bot)
         self.game_state = GameState(self, self.player_manager)
         self.card_handler = CardHandler(self, self.player_manager, self.game_state, self.bot)
+        self.is_final_round = False
 
     async def start_game(self, ctx):
         if self.player_manager.current_players < 1:  # Assuming at least 2 players are needed
@@ -36,7 +37,7 @@ class GameEngine:
         self.game_state.current_minion = self.card_handler.minions.pop(0)  # Assuming self.minions is a list of minion cards
 
         if len(self.card_handler.minions) < 1:
-            self.game_state.is_final_round = True
+            self.is_final_round = True
 
         for player_name, player in self.player_manager.players.items():
             if len(player.hand) < 6:
@@ -82,6 +83,14 @@ class GameEngine:
         # minion_bonus = self.get_minion_bonus()
         # round_winner.minion.append(minion_bonus)
 
+    async def draw_treasures(self, round_winner):
+        # Treasure selection process
+        # Assuming two treasures are drawn and one is chosen
+        drawn_treasures = [self.card_handler.treasures.pop() for _ in range(2)]
+        # Implement logic for player to choose one treasure
+        chosen_treasure = await self.player_manager.player_choose_treasure(round_winner, drawn_treasures)
+        round_winner.treasure.append(chosen_treasure)
+
     def prepare_next_round(self):
         for player in self.player_manager.players.values():
             player.cards_in_play = []
@@ -94,4 +103,5 @@ class GameEngine:
         self.player_manager.reset()
         self.game_state.reset()
         self.card_handler.reset()
+        self.is_final_round = False
 

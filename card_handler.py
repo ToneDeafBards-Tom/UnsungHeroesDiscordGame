@@ -3,6 +3,8 @@ import discord
 
 from characters.minions import minions
 from characters.treasures import treasure_deck
+from helper_functions import roll_dice
+
 
 class CardHandler:
     def __init__(self, game_engine, player_manager, game_state, bot):
@@ -52,7 +54,7 @@ class CardHandler:
             player.used_minions.append(minion)
             response += f"{player_name} used {minion.name}'s {minion.bonus}"
             bonuses.extend(minion.bonus)
-        elif self.game_state.is_final_round and num_hand_cards + num_minion_cards < card_number <= num_hand_cards + num_minion_cards + num_treasure_cards:
+        elif self.game_engine.is_final_round and num_hand_cards + num_minion_cards < card_number <= num_hand_cards + num_minion_cards + num_treasure_cards:
             treasure_index = card_number - num_hand_cards - num_minion_cards - 1
             treasure = player.treasure.pop(treasure_index)
             player.cards_in_play.append(treasure)
@@ -84,7 +86,7 @@ class CardHandler:
                 dice_roll = 2
                 response += f"\n{player_name} added a {bonus} set to {dice_roll}."
             elif bonus.startswith("D"):
-                dice_roll = self.game_engine.roll_dice([bonus])
+                dice_roll = roll_dice([bonus])
                 player.dice_in_play.extend(dice_roll)
                 response += f"\n{player_name} rolled {bonus} and got {dice_roll}."
 
@@ -151,7 +153,7 @@ class CardHandler:
             die_to_reroll = player.dice_in_play[die_index]
 
             # Perform the reroll
-            new_roll = self.game_engine.roll_dice([die_to_reroll[0]])[0]  # Rerolling the same type of die
+            new_roll = roll_dice([die_to_reroll[0]])[0]  # Rerolling the same type of die
             player.dice_in_play[die_index] = new_roll
 
             return die_to_reroll[0], new_roll

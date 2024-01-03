@@ -5,22 +5,19 @@ class GameState:
     def __init__(self, game_engine, player_manager):
         self.game_engine = game_engine
         self.player_manager = player_manager
-
         self.current_round = 0
-        self.is_final_round = False
         self.current_minion = None
         self.previous_states = {}  # Stores the last two states for each player
         self.last_player = None
 
     def reset(self):
         self.current_round = 0
-        self.is_final_round = False
         self.current_minion = None
         self.previous_states = {}  # Stores the last two states for each player
         self.last_player = None
 
     def calculate_score(self, player_name):
-        player = self.player_manager.get(player_name)
+        player = self.player_manager.players.get(player_name)
         if not player:
             return
 
