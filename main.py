@@ -29,14 +29,14 @@ async def choose_character(ctx, character_name):
 @bot.command(name="shuffle_deck")
 async def shuffle_deck(ctx):
     player_name = ctx.author.name
-    response = game_engine.shuffle_deck(player_name)
+    response = game_engine.player_manager.shuffle_deck(player_name)
     await ctx.send(response)
 
 
 @bot.command(name="draw_cards")
 async def draw_cards(ctx):
     player_name = ctx.author.name
-    response = game_engine.draw_cards(player_name)
+    response = game_engine.player_manager.draw_cards(player_name)
     await ctx.send(response)
 
 
@@ -46,7 +46,7 @@ async def display_hand(ctx):
     player_id = ctx.author.id
     player_dm = await ctx.author.create_dm()
 
-    response = game_engine.display_hand(player_name)
+    response = game_engine.player_manager.display_hand(player_name)
     await player_dm.send(response)
 
 
@@ -56,30 +56,30 @@ async def join_game(ctx, character_name: str):
     discord_id = ctx.author.id
     # Normalize the character name for case-insensitivity
     character_name = character_name.lower().capitalize()
-    join_response = game_engine.add_player(player_name, discord_id)
-    choose_response = game_engine.choose_character(player_name, character_name)
+    join_response = game_engine.player_manager.add_player(player_name, discord_id)
+    choose_response = game_engine.player_manager.choose_character(player_name, character_name)
     await ctx.send(join_response + "\n" + choose_response)
 
 
 @bot.command(name="start_game")
 async def start_game(ctx):
     start_response = await game_engine.start_game(ctx)
-    game_state = game_engine.display_game_state()
+    game_state = game_engine.game_state.display_game_state()
     await ctx.send(game_state)
 
 
 @bot.command(name="play_card")
 async def play_card_command(ctx, card_number: int):
     player_name = ctx.author.name
-    response = await game_engine.play_card(player_name, card_number)
+    response = await game_engine.game_state.play_card(player_name, card_number)
     await ctx.send(response)
-    await game_engine.display_hand(player_name)
+    await game_engine.player_manager.display_hand(player_name)
     await game_state_command(ctx)
 
 
 @bot.command(name="game_state")
 async def game_state_command(ctx):
-    response = game_engine.display_game_state()
+    response = game_engine.game_state.display_game_state()
     await ctx.send(response)
 
 
@@ -87,12 +87,12 @@ async def game_state_command(ctx):
 async def end_round_command(ctx):
     round_winner = game_engine.determine_winner()
     await ctx.send(f"Round winner: {round_winner.name}! See DM for Treasure selection.")
-    await game_engine.draw_treasures(round_winner)
+    await game_engine.player_manager.draw_treasures(round_winner)
     game_engine.prepare_next_round()
-    round_start = await game_engine.start_round()
+    round_start = await game_engine.game_state.start_round()
     if game_engine.is_final_round:
         await ctx.send("***The final round has begun! The boss card is drawn.***")
-    game_state = game_engine.display_game_state()
+    game_state = game_engine.game_state.display_game_state()
     await ctx.send(game_state)
 
 

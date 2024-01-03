@@ -1,12 +1,27 @@
 import asyncio
 import discord
 
+from characters.minions import minions
+from characters.treasures import treasure_deck
+
 class CardHandler:
     def __init__(self, game_engine, player_manager, game_state, bot):
         self.game_engine = game_engine
         self.player_manager = player_manager
         self.game_state = game_state
         self.bot = bot
+
+        self.minions = minions[:-1]  # Exclude the boss minion
+        self.minions = self.player_manager.shuffle_deck(self.minions)
+        self.minions.append(minions[-1])  # Add the boss minion at the bottom
+
+        self.treasures = self.player_manager.shuffle_deck(treasure_deck)  # List of treasure cards
+
+    def reset(self):
+        self.minions = minions[:-1]  # Exclude the boss minion
+        self.minions = self.player_manager.shuffle_deck(self.minions)
+        self.minions.append(minions[-1])  # Add the boss minion at the bottom
+        self.treasures = self.player_manager.shuffle_deck(treasure_deck)  # List of treasure cards
 
     async def play_card(self, player_name, card_number):
         player = self.player_manager.players.get(player_name)
@@ -74,7 +89,7 @@ class CardHandler:
                 response += f"\n{player_name} rolled {bonus} and got {dice_roll}."
 
         # After playing a card, calculate the new score, record last played, and save state
-        self.last_player = player_name
+        self.game_state.last_player = player_name
         for name in self.player_manager.players:
             self.game_state.calculate_score(name)
             self.game_state.save_state(name)
@@ -213,7 +228,7 @@ class CardHandler:
             selected_player = self.player_manager.players.get(selected_player_name)
             if selected_index < len(selected_player.dice_in_play):
                 selected_player.dice_in_play[selected_index] = (
-                selected_player.dice_in_play[selected_index][0], set_value)
+                    selected_player.dice_in_play[selected_index][0], set_value)
                 set_message = f"\n{player_name} set {selected_character}'s {selected_player.dice_in_play[selected_index][0]} to {set_value}."
             else:
                 set_message = "Invalid die selection."
@@ -222,21 +237,38 @@ class CardHandler:
         except (IndexError, ValueError, asyncio.TimeoutError):
             await self.player_manager.send_dm(player_requesting.discord_id, "Invalid selection or timeout.")
 
-    async def redistribute_dice(self, ctx, player_name):
-        # Ensure the player exists
+    async def redistribute_dice(self, player_name):
         requesting_player = self.player_manager.players.get(player_name)
         if not requesting_player:
-            await ctx.send(f"{player_name} is not in the game.")
+            await self.player_manager.send_dm(requesting_player.discord_id, "You are not in the game.")
             return
 
-        # Collect available dice from all players
-        available_dice = {name: [(idx, die) for idx, die in enumerate(p.dice_in_play)] for name, p in
-                          self.player_manager.players.items()}
+        # Collect available dice from all players using character names
+        available_dice = {p.character.name: [(idx, die) for idx, die in enumerate(p.dice_in_play)]
+                          for p in self.player_manager.players.values()}
+
+        # Prompt the player to select a die from each character
+        selected_dice = {}
+        for char_name, dice in available_dice.items():
+            dice_list = "\n".join([f"{idx + 1} - {die}({value})" for idx, (die, value) in dice])
+            prompt_message = f"Select a die from {char_name}:\n{dice_list}"
+            await self.player_manager.send_dm(requesting_player.discord_id, prompt_message)
+
+            # Wait for player's response
+            def check(m):
+                return m.author.id == requesting_player.discord_id and m.channel.type == discord.ChannelType.private
+
+            try:
+                response = await self.bot.wait_for('message', check=check, timeout=60.0)
+                selected_index = int(response.content.strip()) - 1
+                selected_dice[char_name] = dice[selected_index]
+            except (IndexError, ValueError, asyncio.TimeoutError):
+                await self.player_manager.send_dm(requesting_player.discord_id, "Invalid selection or timeout.")
+                return
 
         # Prompt the player to redistribute the selected dice
-        selected_dice = {}
-        for target_player_name, (die, value) in available_dice.items():
-            prompt_message = f"Assign {target_player_name}'s {die}({value}) to which player? (Enter player name)"
+        for target_char_name, (die, value) in selected_dice.items():
+            prompt_message = f"Assign {target_char_name}'s {die}({value}) to which character? (Enter character name)"
             await self.player_manager.send_dm(requesting_player.discord_id, prompt_message)
 
             # Wait for player's response for redistribution
@@ -245,22 +277,18 @@ class CardHandler:
 
             try:
                 response = await self.bot.wait_for('message', check=check_redist, timeout=60.0)
-                new_owner_name = response.content.strip()
-                if new_owner_name not in self.player_manager.players:
-                    await self.player_manager.send_dm(requesting_player.discord_id, "Invalid player name.")
+                new_owner_char_name = response.content.strip()
+                new_owner_player = next((p for p in self.player_manager.players.values() if p.character.name == new_owner_char_name), None)
+                if not new_owner_player:
+                    await self.player_manager.send_dm(requesting_player.discord_id, "Invalid character name.")
                     return
-                # Assign the die to the new owner
-                self.player_manager.players[new_owner_name].dice_in_play.append((die, value))
+                new_owner_player.dice_in_play.append((die, value))
             except asyncio.TimeoutError:
                 await self.player_manager.send_dm(requesting_player.discord_id, "Timeout in redistribution. Process canceled.")
                 return
 
         # Update the dice in play for each player after redistribution
-        for name in self.player_manager.players:
-            if name != player_name:
-                self.player_manager.players[name].dice_in_play = [d for d in self.player_manager.players[name].dice_in_play if
-                                                   d not in selected_dice.values()]
+        for player in self.player_manager.players.values():
+            if player.character.name != requesting_player.character.name:
+                player.dice_in_play = [d for d in player.dice_in_play if d not in selected_dice.values()]
 
-        # Recalculate scores for all players
-        for name in self.player_manager.players:
-            self.game_state.calculate_score(name)

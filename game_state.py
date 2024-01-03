@@ -3,14 +3,19 @@ from characters.treasures import treasure_deck
 
 class GameState:
     def __init__(self, game_engine, player_manager):
-        self.current_round = 0
-        self.is_final_round = False
-        self.minions = minions[:-1]  # Exclude the boss minion
-        self.treasures = treasure_deck  # List of treasure cards
-        self.current_minion = None
         self.game_engine = game_engine
         self.player_manager = player_manager
 
+        self.current_round = 0
+        self.is_final_round = False
+        self.current_minion = None
+        self.previous_states = {}  # Stores the last two states for each player
+        self.last_player = None
+
+    def reset(self):
+        self.current_round = 0
+        self.is_final_round = False
+        self.current_minion = None
         self.previous_states = {}  # Stores the last two states for each player
         self.last_player = None
 
@@ -52,55 +57,6 @@ class GameState:
                 f"Score: {player.score}\n\n"
             )
         return game_state_message
-
-    async def start_round(self):
-        round_message = ""
-        self.current_round += 1  # Assuming there's a self.current_round attribute
-        # Draw the first minion card and reveal it
-        self.current_minion = self.minions.pop(0)  # Assuming self.minions is a list of minion cards
-
-        if len(minions) < 51:
-            self.is_final_round = True
-
-        for player_name, player in self.player_manager.players.items():
-            if len(player.hand) < 6:
-                self.player_manager.draw_cards(player.name, num_cards=2)
-            elif len(player.hand) < 7:
-                self.player_manager.draw_cards(player.name, num_cards=1)
-            # Display each player's hand in a private message
-
-            starting_roll = player.character.starting_roll
-            roll_results = self.game_engine.roll_dice(starting_roll)
-
-            # Update dice_in_play with detailed roll results
-            player.dice_in_play.extend(roll_results)
-
-            for minion in player.minions:
-                for bonus in minion.bonus:
-                    if "D4@2" in bonus:
-                        player.dice_in_play.extend([("D4", 2)])
-                        player.used_minions.append(minion)
-                        player.minions.remove(minion)
-                    if "+2" in bonus:
-                        player.used_minions.append(minion)
-                        player.minions.remove(minion)
-
-            # Apply a score bonus or other effect as needed
-
-            # Update score (assuming score is just the sum of roll values)
-            self.calculate_score(player_name)
-            await self.player_manager.display_hand(player_name)
-
-        return round_message
-
-    async def draw_treasures(self, round_winner):
-        # Treasure selection process
-        # Assuming two treasures are drawn and one is chosen
-        drawn_treasures = [self.treasures.pop() for _ in range(2)]
-        # Implement logic for player to choose one treasure
-        chosen_treasure = await self.player_manager.player_choose_treasure(round_winner, drawn_treasures)
-        round_winner.treasure.append(chosen_treasure)
-
 
     def save_state(self, player_name):
         player = self.player_manager.players.get(player_name)

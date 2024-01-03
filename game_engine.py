@@ -1,78 +1,79 @@
 import random
-import asyncio
-import discord
-from PIL import Image
-
-from characters.minions import minions
-from characters.treasures import treasure_deck
-
-from player import Player
 
 from player_manager import PlayerManager
 from game_state import GameState
 from card_handler import CardHandler
 
+from helper_functions import roll_dice
+
+
 class GameEngine:
-    def __init__(self, characters, bot):
-        self.characters = characters
+    def __init__(self, bot):
         self.bot = bot
         self.player_manager = PlayerManager(self, bot)
         self.game_state = GameState(self, self.player_manager)
-        self.card_handler = CardHandler(self.player_manager, self.game_state, self.bot)
-
-        self.characters = characters
-        self.bot = bot
-        self.players = {}
-        self.max_players = 4
-        self.current_players = 0
-        self.current_round = 0
-        self.is_final_round = False
-
-        self.minions = minions[:-1]  # Exclude the boss minion
-        self.shuffle_deck(self.minions)
-        self.minions.append(minions[-1])  # Add the boss minion at the bottom
-        self.current_minion = None
-
-        self.treasures = self.shuffle_deck(treasure_deck)  # List of treasure cards
-
-        self.previous_states = {}  # Stores the last two states for each player
-        self.last_player = None
+        self.card_handler = CardHandler(self, self.player_manager, self.game_state, self.bot)
 
     async def start_game(self, ctx):
-        if self.current_players < 1:  # Assuming at least 2 players are needed
+        if self.player_manager.current_players < 1:  # Assuming at least 2 players are needed
             await ctx.send("Not enough players to start the game.")
             return False
 
         # Shuffle each player's deck and draw initial cards
-        for player_name, player in self.players.items():
-            self.shuffle_player_deck(player_name)
-            self.draw_cards(player_name, num_cards=5)  # Assuming each player draws 7 cards at the start
+        for player_name, player in self.player_manager.players.items():
+            self.player_manager.shuffle_player_deck(player_name)
+            self.player_manager.draw_cards(player_name, num_cards=5)  # Assuming each player draws 7 cards at the start
             await self.start_round()
 
         await ctx.send("Game has started!")
 
         return True
 
-    def roll_dice(self, dice):
-        results = []
-        for die in dice:
-            if die == "D4":
-                results.append(("D4", random.randint(1, 4)))
-            elif die == "D6":
-                results.append(("D6", random.randint(1, 6)))
-            elif die == "D8":
-                results.append(("D8", random.randint(1, 8)))
-            elif die == "D12":
-                results.append(("D12", random.randint(1, 12)))
-        return results
+    async def start_round(self):
+        round_message = ""
+        self.game_state.current_round += 1  # Assuming there's a self.current_round attribute
+        # Draw the first minion card and reveal it
+        self.game_state.current_minion = self.card_handler.minions.pop(0)  # Assuming self.minions is a list of minion cards
 
+        if len(self.card_handler.minions) < 1:
+            self.game_state.is_final_round = True
 
+        for player_name, player in self.player_manager.players.items():
+            if len(player.hand) < 6:
+                self.player_manager.draw_cards(player.name, num_cards=2)
+            elif len(player.hand) < 7:
+                self.player_manager.draw_cards(player.name, num_cards=1)
+            # Display each player's hand in a private message
+
+            starting_roll = player.character.starting_roll
+            roll_results = roll_dice(starting_roll)
+
+            # Update dice_in_play with detailed roll results
+            player.dice_in_play.extend(roll_results)
+
+            for minion in player.minions:
+                for bonus in minion.bonus:
+                    if "D4@2" in bonus:
+                        player.dice_in_play.extend([("D4", 2)])
+                        player.used_minions.append(minion)
+                        player.minions.remove(minion)
+                    if "+2" in bonus:
+                        player.used_minions.append(minion)
+                        player.minions.remove(minion)
+
+            # Apply a score bonus or other effect as needed
+
+            # Update score (assuming score is just the sum of roll values)
+            self.game_state.calculate_score(player_name)
+            await self.player_manager.display_hand(player_name)
+
+        return round_message
 
     def determine_winner(self):
         # Determine the round winner
-        round_winner = max(self.players.values(), key=lambda p: p.score)
+        round_winner = max(self.player_manager.players.values(), key=lambda p: p.score)
         # Award the top minion card
-        round_winner.minions.append(self.current_minion)
+        round_winner.minions.append(self.game_state.current_minion)
 
         return round_winner
 
@@ -82,27 +83,15 @@ class GameEngine:
         # round_winner.minion.append(minion_bonus)
 
     def prepare_next_round(self):
-        for player in self.players.values():
+        for player in self.player_manager.players.values():
             player.cards_in_play = []
             player.dice_in_play = []
             player.score = 0
             player.minions = player.used_minions + player.minions
             player.used_minions = []
 
-
     def restart_game(self):
-        self.players = {}
-        self.max_players = 4
-        self.current_players = 0
-        self.current_round = 0
-        self.is_final_round = False
+        self.player_manager.reset()
+        self.game_state.reset()
+        self.card_handler.reset()
 
-        self.minions = minions[:-1]  # Exclude the boss minion
-        self.shuffle_deck(self.minions)
-        self.minions.append(minions[-1])  # Add the boss minion at the bottom
-        self.current_minion = None
-
-        self.treasures = self.shuffle_deck(treasure_deck)  # List of treasure cards
-
-        self.previous_states = {}  # Stores the last two states for each player
-        self.last_player = None

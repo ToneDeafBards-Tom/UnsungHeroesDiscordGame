@@ -11,12 +11,17 @@ characters = {"Alfred": Alfred}
 
 class PlayerManager:
     def __init__(self, game_engine, bot):
-        self.players = {}
-        self.bot = bot
-        self.current_players = 0
-        self.max_players = 4
-        self.characters = characters
         self.game_engine = game_engine
+        self.bot = bot
+        self.characters = characters
+        self.max_players = 4
+
+        self.players = {}
+        self.current_players = 0
+
+    def reset(self):
+        self.players = {}
+        self.current_players = 0
 
     async def send_dm(self, player_id, message):
         user = await self.bot.fetch_user(player_id)
@@ -120,6 +125,14 @@ class PlayerManager:
         else:
             # Handle error if player not found
             return f"{player_name}, you need to choose a character first."
+
+    async def draw_treasures(self, round_winner):
+        # Treasure selection process
+        # Assuming two treasures are drawn and one is chosen
+        drawn_treasures = [self.game_engine.treasures.pop() for _ in range(2)]
+        # Implement logic for player to choose one treasure
+        chosen_treasure = await self.player_choose_treasure(round_winner, drawn_treasures)
+        round_winner.treasure.append(chosen_treasure)
 
     async def player_choose_treasure(self, player, treasures):
         treasure_message = "** Choose a Treasure **\n"
