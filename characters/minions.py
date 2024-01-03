@@ -6,9 +6,9 @@ class Minion:
 
 # List of minions
 minions = [
-    Minion("Don't Sous-Chef Rat", "Upgrade"),
-    Minion("No Regrets rat", "Reroll"),
-    Minion("Technocratic Rat", "+2"),
-    Minion("Oopsie Rat", "D4@2"),
-    Minion("King Rat", "You Win!")
+    Minion("Don't Sous-Chef Rat", ["Upgrade"]),
+    Minion("No Regrets rat", ["Reroll"]),
+    Minion("Technocratic Rat", ["+2"]),
+    Minion("Oopsie Rat", ["D4@2"]),
+    Minion("King Rat", ["You Win!"])
 ]
