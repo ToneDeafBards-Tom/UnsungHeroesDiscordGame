@@ -1,14 +1,13 @@
 import discord
 from discord.ext import commands
 from game_engine import GameEngine
-from characters.alfred import Alfred
+
 
 intents = discord.Intents.all()
 intents.messages = True
 
 bot = commands.Bot(command_prefix="!", intents=intents, case_insensitive=True)
-characters = {"Alfred": Alfred}
-game_engine = GameEngine(characters, bot)
+game_engine = GameEngine(bot)
 
 # Read the bot token from the config.txt file
 with open("config.txt", "r") as file:
