@@ -4,7 +4,7 @@ import discord
 from PIL import Image
 
 from characters.minions import minions
-from characters.treasures import treasures
+from characters.treasures import treasure_deck
 
 class Player:
     def __init__(self, name, character, discord_id):
@@ -31,13 +31,14 @@ class GameEngine:
         self.max_players = 4
         self.current_players = 0
         self.current_round = 0
+        self.is_final_round = False
 
         self.minions = minions[:-1]  # Exclude the boss minion
         self.shuffle_deck(self.minions)
         self.minions.append(minions[-1])  # Add the boss minion at the bottom
         self.current_minion = None
 
-        self.treasures = self.shuffle_deck(treasures)  # List of treasure cards
+        self.treasures = self.shuffle_deck(treasure_deck)  # List of treasure cards
 
         self.previous_states = {}  # Stores the last two states for each player
         self.last_player = None
@@ -114,8 +115,10 @@ class GameEngine:
                     f"{idx + 1 + len(player.hand)} - {minion.name}, {minion.bonus}"
                     for idx, minion in enumerate(player.minions)
                 ])
+
                 if player.used_minions and player.minions:
                     minion_message += "\n"
+
                 minion_message += "\n".join([
                     f"Used: {minion.name}, {minion.bonus}"
                     for idx, minion in enumerate(player.used_minions)
@@ -125,8 +128,16 @@ class GameEngine:
             # Add treasures and bonuses to the message
             if player.treasure:
                 treasure_message = "\n\nTreasures:\n"
-                treasure_message += "\n".join(
-                    [f"{treasure.name}, {treasure.bonuses}" for treasure in player.treasure])
+                if self.is_final_round:
+                    treasure_message += "\n".join([
+                        f"{idx + 1 + len(player.hand) + len(player.minions)} - {card['name']}, {card['bonuses']}"
+                        for idx, card in enumerate(player.treasure)
+                    ])
+                else:
+                    treasure_message += "\n".join([
+                        f"{card['name']}, {card['bonuses']}"
+                        for idx, card in enumerate(player.treasure)
+                    ])
                 hand_message += treasure_message
 
             full_message = f"*** New Hand ***\n\n{hand_message}"
@@ -175,6 +186,7 @@ class GameEngine:
 
         num_hand_cards = len(player.hand)
         num_minion_cards = len(player.minions)
+        num_treasure_cards = len(player.treasure)
 
         response = ""
         bonuses = []
@@ -194,8 +206,14 @@ class GameEngine:
             minion = player.minions[minion_index]
             player.minions.remove(minion)
             player.used_minions.append(minion)
-            response += f"{player_name} used minion bonus '{minion.name}'"
+            response += f"{player_name} used {minion.name}'s {minion.bonus}"
             bonuses.extend(minion.bonus)
+        elif self.is_final_round and num_hand_cards + num_minion_cards < card_number <= num_hand_cards + num_minion_cards + num_treasure_cards:
+            treasure_index = card_number - num_hand_cards - num_minion_cards - 1
+            treasure = player.treasure.pop(treasure_index)
+            player.cards_in_play.append(treasure)
+            response += f"{player_name} played {treasure['name']}."
+            bonuses.extend(treasure.get("bonuses", []))
         else:
             return "Invalid card or minion bonus number."
 
@@ -432,6 +450,9 @@ class GameEngine:
         # Draw the first minion card and reveal it
         self.current_minion = self.minions.pop(0)  # Assuming self.minions is a list of minion cards
 
+        if len(minions) < 51:
+            self.is_final_round = True
+
         for player_name, player in self.players.items():
             if len(player.hand) < 6:
                 self.draw_cards(player.name, num_cards=2)
@@ -486,8 +507,10 @@ class GameEngine:
 
     async def player_choose_treasure(self, player, treasures):
         treasure_message = "** Choose a Treasure **\n"
-        treasure_message += "\n".join(
-            [f"{idx + 1} - {treasure.name}: {treasure.bonuses}" for idx, treasure in enumerate(treasures, start=0)])
+        treasure_message += "\n".join([
+                        f"{idx + 1} - {card['name']}, {card['bonuses']}"
+                        for idx, card in enumerate(treasures)
+                    ])
         await self.send_dm(player.discord_id, treasure_message)
 
         # Wait for player's choice
@@ -535,3 +558,20 @@ class GameEngine:
             player.cards_in_play = previous_state["cards_in_play"]
             player.score = previous_state["score"]
             # Revert other player attributes as needed
+
+    def restart_game(self):
+        self.players = {}
+        self.max_players = 4
+        self.current_players = 0
+        self.current_round = 0
+        self.is_final_round = False
+
+        self.minions = minions[:-1]  # Exclude the boss minion
+        self.shuffle_deck(self.minions)
+        self.minions.append(minions[-1])  # Add the boss minion at the bottom
+        self.current_minion = None
+
+        self.treasures = self.shuffle_deck(treasure_deck)  # List of treasure cards
+
+        self.previous_states = {}  # Stores the last two states for each player
+        self.last_player = None

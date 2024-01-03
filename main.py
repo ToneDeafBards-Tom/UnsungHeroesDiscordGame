@@ -91,8 +91,16 @@ async def end_round_command(ctx):
     await game_engine.draw_treasures(round_winner)
     game_engine.prepare_next_round()
     round_start = await game_engine.start_round()
+    if game_engine.is_final_round:
+        await ctx.send("***The final round has begun! The boss card is drawn.***")
     game_state = game_engine.display_game_state()
     await ctx.send(game_state)
+
+
+@bot.command(name="restart_game")
+async def restart_game_command(ctx):
+    game_engine.restart_game()
+    await ctx.send("Game has been reset. Rejoin to play again")
 
 if __name__ == "__main__":
     bot.run(BOT_TOKEN)
