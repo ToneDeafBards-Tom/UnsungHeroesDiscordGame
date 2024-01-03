@@ -1,0 +1,6 @@
+# Default ignored files
+config.txt
+/shelf/
+/workspace.xml
+.idea
+.venv
