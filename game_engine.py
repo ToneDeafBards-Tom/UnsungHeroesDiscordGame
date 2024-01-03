@@ -15,7 +15,8 @@ class Player:
         self.hand = []
         self.deck = []  # You may initialize the deck here if needed
         self.treasure = []
-        self.minion = []
+        self.minions = []
+        self.used_minions = []
         self.discard_pile = []
         self.cards_in_play = []
         self.dice_in_play = []
@@ -37,6 +38,9 @@ class GameEngine:
         self.current_minion = None
 
         self.treasures = self.shuffle_deck(treasures)  # List of treasure cards
+
+        self.previous_states = {}  # Stores the last two states for each player
+        self.last_player = None
 
     async def send_dm(self, player_id, message):
         user = await self.bot.fetch_user(player_id)
@@ -98,16 +102,34 @@ class GameEngine:
     async def display_hand(self, player_name):
         player = self.players.get(player_name)
         if player:
-            hand_message = "\n".join([
-                f"{idx + 1} - Card: {card['name']}, Keywords: {', '.join(card.get('keyword', []))}, Bonuses: {', '.join(card['bonuses'])}"
+            hand_message = "Cards:\n"
+            hand_message += "\n".join([
+                f"{idx + 1} - {card['name']}, {card['bonuses']}"
                 for idx, card in enumerate(player.hand)
             ])
 
-            # Add treasures and bonuses to the message
-            treasure_info = "\n".join(
-                [f"Treasure: {treasure.name}, Effect: {treasure.effect}" for treasure in player.treasure])
+            if player.used_minions or player.minions:
+                minion_message = "\n\nMinions:\n"
+                minion_message += "\n".join([
+                    f"{idx + 1 + len(player.hand)} - {minion.name}, {minion.bonus}"
+                    for idx, minion in enumerate(player.minions)
+                ])
+                if player.used_minions and player.minions:
+                    minion_message += "\n"
+                minion_message += "\n".join([
+                    f"Used: {minion.name}, {minion.bonus}"
+                    for idx, minion in enumerate(player.used_minions)
+                ])
+                hand_message += minion_message
 
-            full_message = f"*** New Hand ***\n\n{hand_message}\n\n{treasure_info}"
+            # Add treasures and bonuses to the message
+            if player.treasure:
+                treasure_message = "\n\nTreasures:\n"
+                treasure_message += "\n".join(
+                    [f"{treasure.name}, {treasure.bonuses}" for treasure in player.treasure])
+                hand_message += treasure_message
+
+            full_message = f"*** New Hand ***\n\n{hand_message}"
             await self.send_dm(player.discord_id, full_message)
         else:
             # Handle error if player not found
@@ -151,43 +173,66 @@ class GameEngine:
         if not player:
             return f"{player_name} is not in the game."
 
-        try:
-            card = player.hand.pop(card_number - 1)  # Card numbers are 1-indexed
-        except IndexError:
-            return "Invalid card number."
+        num_hand_cards = len(player.hand)
+        num_minion_cards = len(player.minions)
 
-        player.cards_in_play.append(card)
+        response = ""
+        bonuses = []
 
-        message = f"{player_name} played {card['name']}."
+        if card_number <= num_hand_cards:
+            # Regular card play logic for cards in hand
+            try:
+                card = player.hand.pop(card_number - 1)
+                player.cards_in_play.append(card)
+                response += f"{player_name} played {card['name']}."
+                bonuses.extend(card.get("bonuses", []))
+            except IndexError:
+                return "Invalid card number."
+        elif num_hand_cards < card_number <= num_hand_cards + num_minion_cards:
+            # Use minion bonus
+            minion_index = card_number - num_hand_cards - 1
+            minion = player.minions[minion_index]
+            player.minions.remove(minion)
+            player.used_minions.append(minion)
+            response += f"{player_name} used minion bonus '{minion.name}'"
+            bonuses.extend(minion.bonus)
+        else:
+            return "Invalid card or minion bonus number."
 
         # Handle bonuses on the card
-        for bonus in card.get("bonuses", []):
-            if "Reroll Any" in bonus:
+        for bonus in bonuses:
+            if "Nope" in bonus:
+                self.revert_state(player_name)
+                response = f"{self.last_player}'s last card was canceled by 'Nope'."
+            elif "Reroll Any" in bonus:
                 test = await self.prompt_reroll(player_name, reroll_any=True)
-                message += test
+                response += test
             elif "Reroll" in bonus:
                 test = await self.prompt_reroll(player_name, reroll_any=False)
-                message += test
+                response += test
             elif "Upgrade" in bonus:
                 test = await self.prompt_upgrade_die(player_name)
-                message += test
+                response += test
             elif "Die@4" in bonus:
                 test = await self.prompt_set_die_value(player_name, 4)
-                message += test
+                response += test
             elif "D4@2" in bonus:
                 player.dice_in_play.extend([("D4", 2)])
                 bonus = "D4"
                 dice_roll = 2
-                message += f"\n{player_name} added a {bonus} set to {dice_roll}."
+                response += f"\n{player_name} added a {bonus} set to {dice_roll}."
             elif bonus.startswith("D"):
                 dice_roll = self.roll_dice([bonus])
                 player.dice_in_play.extend(dice_roll)
-                message += f"\n{player_name} rolled {bonus} and got {dice_roll}."
+                response += f"\n{player_name} rolled {bonus} and got {dice_roll}."
 
-        # After playing a card, calculate the new score
-        self.calculate_score(player_name)
+        # After playing a card, calculate the new score, record last played, and save state
+        self.last_player = player_name
+        for name in self.players:
+            self.calculate_score(name)
+            self.save_state(name)
 
-        return message
+        return response
 
     async def prompt_reroll(self, player_name, reroll_any):
         player_requesting = self.players.get(player_name)
@@ -343,6 +388,11 @@ class GameEngine:
                 if bonus.startswith("+"):
                     player.score += int(bonus[1:])
 
+        for minion in player.used_minions:
+            for bonus in minion.bonus:
+                if bonus.startswith("+"):
+                    player.score += int(bonus[1:])
+
 
     def display_game_state(self):
         game_state_message = f"Round Number: {self.current_round}\n"
@@ -353,7 +403,7 @@ class GameEngine:
             cards_in_play = ", ".join(card["name"] for card in player.cards_in_play)
             dice_in_play = ", ".join(f"{die}({value})" for die, value in player.dice_in_play)
             treasure_count = len(player.treasure)
-            minion_count = len(player.minion)
+            minion_count = len(player.minions)
             game_state_message += (
                 f"Player: {player_name}\n"
                 f"Cards in hand: {cards_in_hand}, Minions: {minion_count}, Treasures: {treasure_count}\n"
@@ -388,23 +438,37 @@ class GameEngine:
             elif len(player.hand) < 7:
                 self.draw_cards(player.name, num_cards=1)
             # Display each player's hand in a private message
-            await self.display_hand(player_name)
-            starting_roll = player.character.starting_roll + (player.minion_bonus if player.minion_bonus else ())
+
+            starting_roll = player.character.starting_roll
             roll_results = self.roll_dice(starting_roll)
 
             # Update dice_in_play with detailed roll results
             player.dice_in_play.extend(roll_results)
 
-            # Update score (assuming score is just the sum of roll values)
-            player.score += sum(value for _, value in roll_results)
+            for minion in player.minions:
+                for bonus in minion.bonus:
+                    if "D4@2" in bonus:
+                        player.dice_in_play.extend([("D4", 2)])
+                        player.used_minions.append(minion)
+                        player.minions.remove(minion)
+                    if "+2" in bonus:
+                        player.used_minions.append(minion)
+                        player.minions.remove(minion)
 
-            round_message += f"{player_name} rolled: {', '.join(f'{die}({value})' for die, value in roll_results)}. Total score: {player.score}\n"
+            # Apply a score bonus or other effect as needed
+
+            # Update score (assuming score is just the sum of roll values)
+            self.calculate_score(player_name)
+            await self.display_hand(player_name)
 
         return round_message
 
     def determine_winner(self):
         # Determine the round winner
         round_winner = max(self.players.values(), key=lambda p: p.score)
+        # Award the top minion card
+        round_winner.minions.append(self.current_minion)
+
         return round_winner
 
         # Award minion bonus
@@ -423,7 +487,7 @@ class GameEngine:
     async def player_choose_treasure(self, player, treasures):
         treasure_message = "** Choose a Treasure **\n"
         treasure_message += "\n".join(
-            [f"{idx + 1} - {treasure.name}: {treasure.effect}" for idx, treasure in enumerate(treasures, start=0)])
+            [f"{idx + 1} - {treasure.name}: {treasure.bonuses}" for idx, treasure in enumerate(treasures, start=0)])
         await self.send_dm(player.discord_id, treasure_message)
 
         # Wait for player's choice
@@ -442,7 +506,32 @@ class GameEngine:
             player.cards_in_play = []
             player.dice_in_play = []
             player.score = 0
+            player.minions = player.used_minions + player.minions
+            player.used_minions = []
 
+    def save_state(self, player_name):
+        player = self.players.get(player_name)
+        if player:
+            state_snapshot = {
+                "dice_in_play": list(player.dice_in_play),
+                "cards_in_play": list(player.cards_in_play),
+                "score": player.score,
+                # Add other player attributes as needed
+            }
 
+            # Save the last two states
+            if player_name not in self.previous_states:
+                self.previous_states[player_name] = [state_snapshot, None]
+            else:
+                self.previous_states[player_name][1] = self.previous_states[player_name][0]
+                self.previous_states[player_name][0] = state_snapshot
 
-
+    def revert_state(self, player_name):
+        # Revert to the previous state
+        player = self.players.get(player_name)
+        if player and player_name in self.previous_states and self.previous_states[player_name][1]:
+            previous_state = self.previous_states[player_name][1]
+            player.dice_in_play = previous_state["dice_in_play"]
+            player.cards_in_play = previous_state["cards_in_play"]
+            player.score = previous_state["score"]
+            # Revert other player attributes as needed
