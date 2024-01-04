@@ -14,6 +14,8 @@ class GameEngine:
         self.game_state = GameState(self, self.player_manager)
         self.card_handler = CardHandler(self, self.player_manager, self.game_state, self.bot)
         self.is_final_round = False
+        self.current_turn_player_index = 0
+        self.player_order = []  # Will hold the order of players
 
     async def start_game(self, ctx):
         if self.player_manager.current_players < 1:  # Assuming at least 2 players are needed
@@ -26,11 +28,31 @@ class GameEngine:
             self.player_manager.draw_cards(player_name, num_cards=5)  # Assuming each player draws 7 cards at the start
             await self.start_round()
 
+        self.player_order = list(self.player_manager.players.keys())
+        random.shuffle(self.player_order)  # Optional: shuffle for random turn order
+        self.current_turn_player_index = 0  # Start with the first player in the order
+
+        # Announce the start of the game and whose turn it is
+        current_player = self.get_current_player()
+
+
         await ctx.send("Game has started!")
 
         return True
 
-    async def start_round(self):
+    def determine_first_player(self):
+        pass
+
+    def get_current_player(self):
+        return self.player_manager.players[self.player_order[self.current_turn_player_index]]
+
+    async def next_turn(self, ctx):
+        # Advance to the next player
+        self.current_turn_player_index = (self.current_turn_player_index + 1) % len(self.player_order)
+        current_player = self.get_current_player()
+        await ctx.send(f"It's now {current_player.name}'s turn.")
+
+    async def start_round(self, ctx):
         round_message = ""
         self.game_state.current_round += 1  # Assuming there's a self.current_round attribute
         # Draw the first minion card and reveal it
@@ -124,4 +146,19 @@ class GameEngine:
         self.game_state.reset()
         self.card_handler.reset()
         self.is_final_round = False
+
+    def add_ai_player(self, ai_bot):
+        self.ai_bot = ai_bot
+        # Add AI bot as a player in the game
+        self.players[ai_bot.name] = ai_bot
+
+    def next_turn(self):
+        # ... existing turn logic ...
+
+        current_player = self.get_current_player()
+        if current_player.name == self.ai_bot.name:
+            decision = self.ai_bot.make_decision()
+            # Execute the AI's decision
+            # ...
+
 

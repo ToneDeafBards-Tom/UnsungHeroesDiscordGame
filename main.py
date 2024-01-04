@@ -89,7 +89,7 @@ async def end_round_command(ctx):
     await ctx.send(f"Round winner: {round_winner.name}! See DM for Treasure selection.")
     await game_engine.draw_treasures(round_winner)
     game_engine.prepare_next_round()
-    round_start = await game_engine.start_round()
+    round_start = await game_engine.start_round(ctx)
     if game_engine.is_final_round:
         await ctx.send("***The final round has begun! The boss card is drawn.***")
     game_state = game_engine.game_state.display_game_state()

@@ -340,3 +340,71 @@ class CardHandler:
             await self.player_manager.send_dm(player.discord_id, "No response, no die discarded.")
 
         return bonuses
+
+
+
+    async def swap_dice(self, player_name):
+        player_requesting = self.players.get(player_name)
+        if not player_requesting:
+            await self.send_dm(player_requesting.discord_id, "You are not in the game.")
+            return
+
+        # Prompt the player to choose a die from two different players
+        # Step 1: Choose the first die
+        first_die_info = await self.choose_die_for_swap(player_requesting,
+                                                        "Choose the first die to swap (format: PlayerName DieNumber):")
+        if not first_die_info:
+            return  # Handle invalid selection or cancellation
+
+        # Step 2: Choose the second die
+        second_die_info = await self.choose_die_for_swap(player_requesting,
+                                                         "Choose the second die to swap (format: PlayerName DieNumber):")
+        if not second_die_info:
+            return  # Handle invalid selection or cancellation
+
+        # Perform the swap
+        self.perform_die_swap(first_die_info, second_die_info)
+        await self.send_dm(player_requesting.discord_id, "Dice have been swapped.")
+
+    async def choose_die_for_swap(self, player_requesting, prompt_message):
+        # List all dice from all players
+        dice_list = self.get_all_dice_list()
+
+        # Send the prompt message
+        await self.send_dm(player_requesting.discord_id, prompt_message + "\n" + dice_list)
+
+        # Define check for response
+        def check(m):
+            return m.author.id == player_requesting.discord_id and m.channel.type == discord.ChannelType.private
+
+        try:
+            response = await self.bot.wait_for('message', check=check, timeout=60.0)
+            selected_player_name, selected_index = response.content.strip().split()
+            selected_index = int(selected_index) - 1
+            selected_player = self.players.get(selected_player_name)
+            selected_die = selected_player.dice_in_play[selected_index]
+            return selected_player, selected_die
+        except (IndexError, ValueError, asyncio.TimeoutError):
+            await self.send_dm(player_requesting.discord_id, "Invalid selection or timeout.")
+            return None
+
+    def get_all_dice_list(self):
+        # Create a list of all dice from all players
+        dice_list = ""
+        for name, p in self.players.items():
+            dice_list += f"\n{name}: " + ", ".join([f"{idx + 1} - {die}" for idx, die in enumerate(p.dice_in_play)])
+        return dice_list
+
+    def perform_die_swap(self, first_die_info, second_die_info):
+        # Extract the player and die information
+        first_player, first_die = first_die_info
+        second_player, second_die = second_die_info
+
+        # Remove the dice from the original owners
+        first_player.dice_in_play.remove(first_die)
+        second_player.dice_in_play.remove(second_die)
+
+        # Swap the dice
+        first_player.dice_in_play.append(second_die)
+        second_player.dice_in_play.append(first_die)
+
