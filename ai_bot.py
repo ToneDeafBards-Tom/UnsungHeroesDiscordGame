@@ -1,10 +1,45 @@
-class AIBot:
-    def __init__(self, name, character, game_engine):
-        self.name = name
-        self.character = character
+import random
+import re
+import asyncio
+
+from player import Player
+
+
+class AIBot(Player):
+    def __init__(self, name, character, discord_id, game_engine):
+        super().__init__(name, character, discord_id)
         self.game_engine = game_engine
 
-    def make_decision(self):
-        # AI logic to decide what action to take
-        # For example, a simple AI might randomly choose a card to play
-        pass
+    async def choose_play_card(self, game_engine, ctx):
+        print("IM THINKING")
+        await asyncio.sleep(2)
+        # determine if winning
+
+        # Implement the AI's decision-making logic here
+        # For example, randomly choose an action
+        # This is a placeholder logic; you can develop more complex strategies
+        playable_cards = [self.hand.index(card) for card in self.hand if "Nope" not in card['bonuses']]
+        print("here are my playable cards", playable_cards)
+        print("choose one at random")
+        card_to_play = random.choice(playable_cards)
+        await self.game_engine.card_handler.play_card(self.name, card_to_play, ctx)
+        response = self.game_engine.game_state.display_game_state()
+        await ctx.send(response)
+        await asyncio.sleep(2)
+        task = asyncio.create_task(self.game_engine.next_turn(ctx, self.name))
+
+
+    # Add more methods as needed for different game actions
+
+    async def make_choice(self, message):
+        if message.startswith("Choose"):
+            # Regular expression to match patterns like "Wanda 1 - D8(3)"
+            pattern = r"(\w+ \d+) - D\d+\(\d+\)"
+            matches = re.findall(pattern, message)
+            # Randomly select one of the matches
+            if matches:
+                selected_die = random.choice(matches)
+                print(message)
+                print('bot choice', selected_die, matches)
+                return selected_die
+

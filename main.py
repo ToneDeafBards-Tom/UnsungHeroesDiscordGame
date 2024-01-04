@@ -1,6 +1,8 @@
 import discord
 from discord.ext import commands
 from game_engine import GameEngine
+from ai_bot import AIBot
+from player_manager import characters
 
 
 intents = discord.Intents.all()
@@ -60,6 +62,20 @@ async def join_game(ctx, character_name: str):
     choose_response = game_engine.player_manager.choose_character(player_name, character_name)
     await ctx.send(join_response + "\n" + choose_response)
 
+@bot.command(name="add_bot")
+async def add_bot_command(ctx, character_name: str):
+    if character_name not in characters:  # Assuming 'characters' is your available characters dictionary
+        await ctx.send(f"Character '{character_name}' does not exist.")
+        return
+
+    if game_engine.game_started:  # Assuming there is a flag in your game engine to check if the game has started
+        await ctx.send("Cannot add AI bots after the game has started.")
+        return
+
+    ai_bot = AIBot("AI_" + character_name, character_name, "Bot", game_engine)  # Create an AI bot instance
+    response = game_engine.player_manager.add_ai_player(ai_bot)  # Add the AI bot to the game engine
+    await ctx.send(response)
+
 
 @bot.command(name="start_game")
 async def start_game(ctx):
@@ -71,11 +87,12 @@ async def start_game(ctx):
 @bot.command(name="play_card")
 async def play_card_command(ctx, card_number: int):
     player_name = ctx.author.name
-    response = await game_engine.card_handler.play_card(player_name, card_number)
-    await ctx.send(response)
+    response = await game_engine.card_handler.play_card(player_name, card_number, ctx)
+    # await ctx.send(response)
     await game_engine.player_manager.display_hand(player_name)
+    if "Nope" not in response:
+        await game_engine.next_turn(ctx, player_name)
     await game_state_command(ctx)
-
 
 @bot.command(name="game_state")
 async def game_state_command(ctx):
@@ -85,21 +102,21 @@ async def game_state_command(ctx):
 
 @bot.command(name="end_round")
 async def end_round_command(ctx):
-    round_winner = game_engine.determine_winner()
-    await ctx.send(f"Round winner: {round_winner.name}! See DM for Treasure selection.")
-    await game_engine.draw_treasures(round_winner)
-    game_engine.prepare_next_round()
-    round_start = await game_engine.start_round(ctx)
-    if game_engine.is_final_round:
-        await ctx.send("***The final round has begun! The boss card is drawn.***")
-    game_state = game_engine.game_state.display_game_state()
-    await ctx.send(game_state)
+    await game_engine.end_round(ctx)
 
 
 @bot.command(name="restart_game")
 async def restart_game_command(ctx):
     game_engine.restart_game()
     await ctx.send("Game has been reset. Rejoin to play again")
+
+
+@bot.command(name="pass")
+async def pass_command(ctx):
+    player_name = ctx.author.name
+    await game_engine.next_turn(ctx, player_name)
+
+
 
 if __name__ == "__main__":
     bot.run(BOT_TOKEN)

@@ -36,6 +36,10 @@ class GameState:
                 if bonus.startswith("+"):
                     player.score += int(bonus[1:])
 
+        for bonus in player.passive_bonus:
+            if bonus.startswith("+"):
+                player.score += int(bonus[1:])
+
     def display_game_state(self):
         game_state_message = f"Round Number: {self.current_round}\n"
         game_state_message += f"Current Minion: {self.current_minion.name}, Bonus: {self.current_minion.bonus}\n\n"
@@ -47,7 +51,7 @@ class GameState:
             treasure_count = len(player.treasure)
             minion_count = len(player.minions)
             game_state_message += (
-                f"Player: {player_name}\n"
+                f"Player: {player.character.name}\n"
                 f"Cards in hand: {cards_in_hand}, Minions: {minion_count}, Treasures: {treasure_count}\n"
                 f"Cards in play: {cards_in_play}\n"
                 f"Dice in play: {dice_in_play}\n"

@@ -13,3 +13,4 @@ class Player:
         self.cards_in_play = []
         self.dice_in_play = []
         self.score = 0
+        self.passive_bonus = [] # for Tilda and probably Karl

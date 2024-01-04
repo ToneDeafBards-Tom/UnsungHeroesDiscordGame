@@ -1,4 +1,5 @@
 import random
+import re
 import asyncio
 import discord
 from PIL import Image
@@ -27,9 +28,12 @@ class PlayerManager:
         self.current_players = 0
 
     async def send_dm(self, player_id, message):
-        user = await self.bot.fetch_user(player_id)
-        dm_channel = await user.create_dm()
-        await dm_channel.send(message)
+        if player_id != "Bot":
+            user = await self.bot.fetch_user(player_id)
+            dm_channel = await user.create_dm()
+            await dm_channel.send(message)
+        else:
+            print("bot dm", message)
 
     def add_player(self, player_name, discord_id):
         # Add a new player if not already present and max players not reached
@@ -39,6 +43,17 @@ class PlayerManager:
             return f"{player_name} has joined the game."
         elif player_name in self.players:
             return f"{player_name} is already in the game."
+        else:
+            return "Maximum number of players reached."
+
+    def add_ai_player(self, ai_bot):
+        if ai_bot.name not in self.players and self.current_players < self.max_players:
+            self.players[ai_bot.name] = ai_bot
+            self.choose_character(ai_bot.name, ai_bot.character)
+            self.current_players += 1
+            return f"{ai_bot.name} has joined the game."
+        elif ai_bot.name in self.players:
+            return f"{ai_bot.name} is already in the game."
         else:
             return "Maximum number of players reached."
 
