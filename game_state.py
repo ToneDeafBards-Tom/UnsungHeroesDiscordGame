@@ -72,12 +72,13 @@ class GameState:
                 self.previous_states[player_name][1] = self.previous_states[player_name][0]
                 self.previous_states[player_name][0] = state_snapshot
 
-    def revert_state(self, player_name):
+    def revert_state(self):
         # Revert to the previous state
-        player = self.player_manager.players.get(player_name)
-        if player and player_name in self.previous_states and self.previous_states[player_name][1]:
-            previous_state = self.previous_states[player_name][1]
-            player.dice_in_play = previous_state["dice_in_play"]
-            player.cards_in_play = previous_state["cards_in_play"]
-            player.score = previous_state["score"]
-            # Revert other player attributes as needed
+        for player_name in self.player_manager.players:
+            player = self.player_manager.players.get(player_name)
+            if player_name in self.previous_states and self.previous_states[player_name][1]:
+                previous_state = self.previous_states[player_name][1]
+                player.dice_in_play = previous_state["dice_in_play"]
+                player.cards_in_play = previous_state["cards_in_play"]
+                player.score = previous_state["score"]
+                # Revert other player attributes as needed

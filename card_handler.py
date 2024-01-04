@@ -36,6 +36,7 @@ class CardHandler:
 
         response = ""
         bonuses = []
+        card = ""
 
         if card_number <= num_hand_cards:
             # Regular card play logic for cards in hand
@@ -66,8 +67,13 @@ class CardHandler:
         # Handle bonuses on the card
         for bonus in bonuses:
             if "Nope" in bonus:
-                self.game_state.revert_state(player_name)
+                last_player = self.player_manager.players.get(self.game_state.last_player)
+                noped_card = last_player.cards_in_play[-1]
+                self.game_state.revert_state()
+                player.cards_in_play.append(card)
+                last_player.discard.append(noped_card)
                 response = f"{self.game_state.last_player}'s last card was canceled by 'Nope'."
+
             elif "Reroll Any" in bonus:
                 test = await self.prompt_reroll(player_name, reroll_any=True)
                 response += test

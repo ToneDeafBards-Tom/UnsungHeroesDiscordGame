@@ -68,6 +68,13 @@ class GameEngine:
             self.game_state.calculate_score(player_name)
             await self.player_manager.display_hand(player_name)
 
+        # Load up states for first round nope. do it twice since it goes off of next to last card
+        for name in self.player_manager.players:
+            self.game_state.save_state(name)
+
+        for name in self.player_manager.players:
+            self.game_state.save_state(name)
+
         return round_message
 
     def determine_winner(self):
@@ -93,6 +100,8 @@ class GameEngine:
 
     def prepare_next_round(self):
         for player in self.player_manager.players.values():
+            for card in player.cards_in_play:
+                player.discard.append(card)
             player.cards_in_play = []
             player.dice_in_play = []
             player.score = 0

@@ -9,8 +9,7 @@ class Player:
         self.treasure = []
         self.minions = []
         self.used_minions = []
-        self.discard_pile = []
+        self.discard = []
         self.cards_in_play = []
         self.dice_in_play = []
         self.score = 0
-        self.minion_bonus = []
