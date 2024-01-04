@@ -22,7 +22,6 @@ class GameState:
             return
 
         # Example score calculation logic
-        print(player.dice_in_play)
         player.score = sum(value for _, value in player.dice_in_play)
         for card in player.cards_in_play:
             # Handle bonuses on the card

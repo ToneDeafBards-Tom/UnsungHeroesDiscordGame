@@ -1,3 +1,5 @@
+from characters.minions import Minion
+
 class Tilda:
     def __init__(self):
         self.name = "Tilda"
@@ -20,4 +22,7 @@ class Tilda:
             {"name": "Live and Let Live", "bonuses": ["Reuse", "Reuse"], "keyword": ["Player Card"], "image_path": "images/player_card_3xd4.png"},
             {"name": "Reduce, Reuse, Recycle", "bonuses": ["Reuse Any", "Reuse Any"], "keyword": ["Player Card", "Gold Card"], "image_path": "images/player_card_9.png"}
         ]
+
+
+rat_bonus = Minion("Rat Bonus", ["+1"])
 

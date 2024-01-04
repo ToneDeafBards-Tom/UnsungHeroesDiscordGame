@@ -64,6 +64,9 @@ class CardHandler:
         else:
             return "Invalid card or minion bonus number."
 
+        if player.character.name == "Jerry" and any(bonus.startswith("D") for bonus in bonuses):
+            bonuses.append("D6")
+
         # Handle bonuses on the card
         for bonus in bonuses:
             if "Nope" in bonus:
@@ -304,3 +307,25 @@ class CardHandler:
             if player.character.name != requesting_player.character.name:
                 player.dice_in_play = [d for d in player.dice_in_play if d not in selected_dice.values()]
 
+
+    async def prompt_dice_discard(self, player):
+        # List the dice for the player to choose which to discard
+        dice_list_msg = "Choose a die to discard:\n" + "\n".join(
+            [f"{idx + 1} - {die}" for idx, die in enumerate(player.dice_in_play)]
+        )
+        await self.send_dm(player.discord_id, dice_list_msg)
+
+        # Define check for response
+        def check(m):
+            return m.author.id == player.discord_id and m.channel.type == discord.ChannelType.private
+
+        try:
+            response = await self.bot.wait_for('message', check=check, timeout=60.0)
+            selected_index = int(response.content.strip()) - 1
+            if 0 <= selected_index < len(player.dice_in_play):
+                discarded_die = player.dice_in_play.pop(selected_index)
+                await self.send_dm(player.discord_id, f"You discarded {discarded_die}.")
+            else:
+                await self.send_dm(player.discord_id, "Invalid selection.")
+        except asyncio.TimeoutError:
+            await self.send_dm(player.discord_id, "No response, no die discarded.")

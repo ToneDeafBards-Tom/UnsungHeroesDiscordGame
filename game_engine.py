@@ -5,7 +5,7 @@ from game_state import GameState
 from card_handler import CardHandler
 
 from helper_functions import roll_dice, add_wanda_die
-
+from characters.tilda import rat_bonus
 
 class GameEngine:
     def __init__(self, bot):
@@ -62,6 +62,9 @@ class GameEngine:
                     if "+2" in bonus:
                         player.used_minions.append(minion)
                         player.minions.remove(minion)
+                    if "+1" in bonus:
+                        player.used_minions.append(minion)
+                        player.minions.remove(minion)
 
             # Apply a score bonus or other effect as needed
 
@@ -98,6 +101,10 @@ class GameEngine:
         # Implement logic for player to choose one treasure
         chosen_treasure = await self.player_manager.player_choose_treasure(round_winner, drawn_treasures)
         round_winner.treasure.append(chosen_treasure)
+        for player_name in self.player_manager.players:
+            player = self.player_manager.players.get(player_name)
+            if player.character.name == "Tilda" and player is not round_winner:
+                player.minions.append(rat_bonus)
 
     def prepare_next_round(self):
         for player in self.player_manager.players.values():
