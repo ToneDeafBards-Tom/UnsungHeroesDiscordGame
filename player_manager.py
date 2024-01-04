@@ -5,8 +5,11 @@ from PIL import Image
 
 from player import Player
 from characters.alfred import Alfred
+from characters.wanda import Wanda
+from characters.jerry import Jerry
+from characters.tilda import Tilda
 
-characters = {"Alfred": Alfred}
+characters = {"Alfred": Alfred, "Wanda": Wanda, "Jerry": Jerry, "Tilda": Tilda}
 
 
 class PlayerManager:

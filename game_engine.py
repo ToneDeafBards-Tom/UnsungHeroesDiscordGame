@@ -4,7 +4,7 @@ from player_manager import PlayerManager
 from game_state import GameState
 from card_handler import CardHandler
 
-from helper_functions import roll_dice
+from helper_functions import roll_dice, add_wanda_die
 
 
 class GameEngine:
@@ -46,11 +46,12 @@ class GameEngine:
                 self.player_manager.draw_cards(player.name, num_cards=1)
             # Display each player's hand in a private message
 
-            starting_roll = player.character.starting_roll
-            roll_results = roll_dice(starting_roll)
-
-            # Update dice_in_play with detailed roll results
-            player.dice_in_play.extend(roll_results)
+            for die in player.character.starting_roll:
+                die_roll = roll_dice(die)
+                # Update dice_in_play with detailed roll results
+                player.dice_in_play.extend([(die, die_roll)])
+                if die_roll == 1 and player.character.name == "Wanda":
+                    round_message += add_wanda_die(player, die)
 
             for minion in player.minions:
                 for bonus in minion.bonus:

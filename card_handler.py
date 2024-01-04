@@ -3,7 +3,7 @@ import discord
 
 from characters.minions import minions
 from characters.treasures import treasure_deck
-from helper_functions import roll_dice
+from helper_functions import roll_dice, add_wanda_die
 
 
 class CardHandler:
@@ -89,12 +89,14 @@ class CardHandler:
             elif "D4@2" in bonus:
                 player.dice_in_play.extend([("D4", 2)])
                 bonus = "D4"
-                dice_roll = 2
-                response += f"\n{player_name} added a {bonus} set to {dice_roll}."
+                die_roll = 2
+                response += f"\n{player_name} added a {bonus} set to {die_roll}."
             elif bonus.startswith("D"):
-                dice_roll = roll_dice([bonus])
-                player.dice_in_play.extend(dice_roll)
-                response += f"\n{player_name} rolled {bonus} and got {dice_roll}."
+                die_roll = roll_dice(bonus)
+                player.dice_in_play.extend([(bonus, die_roll)])
+                response += f"\n{player_name} rolled {bonus} and got {die_roll}."
+                if die_roll == 1 and player.character.name == "Wanda" and bonus not in ["D12"]:
+                    response += add_wanda_die(player, bonus)
 
         # After playing a card, calculate the new score, record last played, and save state
         self.game_state.last_player = player_name
@@ -103,6 +105,8 @@ class CardHandler:
             self.game_state.save_state(name)
 
         return response
+
+
 
     async def prompt_reroll(self, player_name, reroll_any):
         player_requesting = self.player_manager.players.get(player_name)
