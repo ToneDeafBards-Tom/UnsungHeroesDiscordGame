@@ -65,7 +65,7 @@ class CardHandler:
             return "Invalid card or minion bonus number."
 
         if player.character.name == "Jerry" and any(bonus.startswith("D") for bonus in bonuses):
-            bonuses.append("D6")
+            bonuses = await self.handle_jerry_dice(player, bonuses)
 
         # Handle bonuses on the card
         for bonus in bonuses:
@@ -94,7 +94,7 @@ class CardHandler:
                 bonus = "D4"
                 die_roll = 2
                 response += f"\n{player_name} added a {bonus} set to {die_roll}."
-            elif bonus.startswith("D"):
+            elif bonus.startswith("D") and player.character.name not in ["Jerry"]:
                 die_roll = roll_dice(bonus)
                 player.dice_in_play.extend([(bonus, die_roll)])
                 response += f"\n{player_name} rolled {bonus} and got {die_roll}."
@@ -108,8 +108,6 @@ class CardHandler:
             self.game_state.save_state(name)
 
         return response
-
-
 
     async def prompt_reroll(self, player_name, reroll_any):
         player_requesting = self.player_manager.players.get(player_name)
@@ -166,8 +164,8 @@ class CardHandler:
             die_to_reroll = player.dice_in_play[die_index]
 
             # Perform the reroll
-            new_roll = roll_dice([die_to_reroll[0]])[0]  # Rerolling the same type of die
-            player.dice_in_play[die_index] = new_roll
+            new_roll = roll_dice(die_to_reroll[0])  # Rerolling the same type of die
+            player.dice_in_play[die_index] = (die_to_reroll[0], new_roll)
 
             return die_to_reroll[0], new_roll
         except IndexError:
@@ -222,7 +220,6 @@ class CardHandler:
         dice_list = []
         for p_name, p in self.player_manager.players.items():
             character_name = p.character.name
-            print(p.dice_in_play)
             for idx, (die, value) in enumerate(p.dice_in_play):
                 dice_list.append(f"{character_name} {idx + 1} - {die}({value})")
 
@@ -307,13 +304,23 @@ class CardHandler:
             if player.character.name != requesting_player.character.name:
                 player.dice_in_play = [d for d in player.dice_in_play if d not in selected_dice.values()]
 
-
-    async def prompt_dice_discard(self, player):
+    async def handle_jerry_dice(self, player, bonuses):
+        dice_list = []
+        for bonus in bonuses:
+            if bonus.startswith("D"):
+                dice_list.append(bonus)
+        for die in dice_list:
+            bonuses.remove(die)
+        dice_list.append("D6")
+        rolled_dice = []
+        for die in dice_list:
+            die_roll = roll_dice(die)
+            rolled_dice.extend([(die, die_roll)])
         # List the dice for the player to choose which to discard
         dice_list_msg = "Choose a die to discard:\n" + "\n".join(
-            [f"{idx + 1} - {die}" for idx, die in enumerate(player.dice_in_play)]
+            [f"{idx + 1} - {die}({value})" for idx, (die, value) in enumerate(rolled_dice)]
         )
-        await self.send_dm(player.discord_id, dice_list_msg)
+        await self.player_manager.send_dm(player.discord_id, dice_list_msg)
 
         # Define check for response
         def check(m):
@@ -322,10 +329,14 @@ class CardHandler:
         try:
             response = await self.bot.wait_for('message', check=check, timeout=60.0)
             selected_index = int(response.content.strip()) - 1
-            if 0 <= selected_index < len(player.dice_in_play):
-                discarded_die = player.dice_in_play.pop(selected_index)
-                await self.send_dm(player.discord_id, f"You discarded {discarded_die}.")
+            if 0 <= selected_index < len(rolled_dice):
+                discarded_die = rolled_dice.pop(selected_index)
+                for die in rolled_dice:
+                    player.dice_in_play.append(die)
+                await self.player_manager.send_dm(player.discord_id, f"You discarded {discarded_die}.")
             else:
-                await self.send_dm(player.discord_id, "Invalid selection.")
+                await self.player_manager.send_dm(player.discord_id, "Invalid selection.")
         except asyncio.TimeoutError:
-            await self.send_dm(player.discord_id, "No response, no die discarded.")
+            await self.player_manager.send_dm(player.discord_id, "No response, no die discarded.")
+
+        return bonuses

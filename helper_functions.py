@@ -15,4 +15,3 @@ def add_wanda_die(player, die):
     player.dice_in_play.extend([(die, die_roll)])
     return f"\nWanda's {die} exploded and got a {die_roll}!"
 
-

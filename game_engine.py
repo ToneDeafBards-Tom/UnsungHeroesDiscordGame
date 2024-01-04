@@ -47,11 +47,14 @@ class GameEngine:
             # Display each player's hand in a private message
 
             for die in player.character.starting_roll:
-                die_roll = roll_dice(die)
-                # Update dice_in_play with detailed roll results
-                player.dice_in_play.extend([(die, die_roll)])
-                if die_roll == 1 and player.character.name == "Wanda":
-                    round_message += add_wanda_die(player, die)
+                if player.character.name == "Jerry":
+                    bonuses = await self.card_handler.handle_jerry_dice(player, [die])
+                else:
+                    die_roll = roll_dice(die)
+                    # Update dice_in_play with detailed roll results
+                    player.dice_in_play.extend([(die, die_roll)])
+                    if die_roll == 1 and player.character.name == "Wanda":
+                        round_message += add_wanda_die(player, die)
 
             for minion in player.minions:
                 for bonus in minion.bonus:
