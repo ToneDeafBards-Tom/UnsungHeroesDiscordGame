@@ -4,7 +4,8 @@ import discord
 from characters.minions import minions
 from characters.treasures import treasure_deck
 from helper_functions import (roll_dice, add_wanda_die, shuffle_deck, send_public_message, send_dm, get_player_obj,
-                              get_all_player_objs, get_player_name_by_character, get_list_dice)
+                              get_all_player_objs, get_player_name_by_character, get_dice_dict,
+                              create_dice_prompt_message)
 
 
 class CardHandler:
@@ -42,6 +43,7 @@ class CardHandler:
 
         response += await self.handle_card_bonuses(player_obj, bonuses)
         await self.finalize_card_play(player_obj, response)
+        await self.game_engine.next_turn(player_name)
 
     async def get_card_details(self, player_obj, card_number):
         player_name = player_obj.name
@@ -57,7 +59,7 @@ class CardHandler:
             try:
                 card = player_obj.hand.pop(card_number - 1)
                 player_obj.cards_in_play.append(card)
-                response += f"{player_name} played {card['name']}."
+                await send_public_message(self.game_engine, f"{player_name} played {card['name']}.")
                 bonuses.extend(card.get("bonuses", []))
             except IndexError:
                 return "Invalid card number."
@@ -73,7 +75,7 @@ class CardHandler:
             treasure_index = card_number - num_hand_cards - num_minion_cards - 1
             treasure = player_obj.treasure.pop(treasure_index)
             player_obj.cards_in_play.append(treasure)
-            response += f"{player_name} played {treasure['name']}."
+            await send_public_message(self.game_engine, f"{player_name} played {treasure['name']}.")
             bonuses.extend(treasure.get("bonuses", []))
         else:
             return "Invalid card or minion bonus number."
@@ -129,7 +131,10 @@ class CardHandler:
         if "Nope" not in response:
             self.game_engine.consecutive_passes = 0
 
-        await send_public_message(self.game_engine, response)
+        task = asyncio.create_task(self.game_engine.player_manager.display_hand(player_name))
+
+        if response:
+            await send_public_message(self.game_engine, response)
         return
 
     async def prompt_reroll(self, player_name, reroll_any):
@@ -139,16 +144,15 @@ class CardHandler:
             return
 
         # Generate the list of dice with character names
-        dice_list = []
+        dice_dict = []
         if reroll_any:
-            dice_list = get_list_dice(self.game_engine)
+            dice_dict = get_dice_dict(self.game_engine)
         else:
             # List only the requesting player's dice
-            character_name = player_obj.character.name
-            for idx, (die, value) in enumerate(player_obj.dice_in_play):
-                dice_list.append(f"{character_name} {idx + 1} - {die}({value})")
+            dice_dict = get_dice_dict(self.game_engine, only_char_name=player_name)
 
-        prompt_message = "Choose a die to reroll (format: CharacterName DieNumber):\n" + "\n".join(dice_list)
+        prompt_message = create_dice_prompt_message(dice_dict, "Reroll")
+        print(prompt_message)
         selected_character, selected_index = await send_dm(self.game_engine, player_obj, prompt_message, need_response=True)
         # Translate character name back to player name
         selected_player_name = get_player_name_by_character(self.game_engine, selected_character)
@@ -174,14 +178,13 @@ class CardHandler:
     async def prompt_upgrade_die(self, player_name):
         player_obj = get_player_obj(self.game_engine, player_name)
         # Generate a list of upgradeable dice (D4 and D6)
-        upgradeable_dice = get_list_dice(self.game_engine, exclude_dice=["D12", "D8"])
+        dice_dict = get_dice_dict(self.game_engine, exclude_dice=["D12", "D8"])
 
-        if not upgradeable_dice:
+        if not dice_dict:
             await send_dm(self.game_engine, player_obj.discord_id, "No dice available to upgrade.")
             return
 
-        prompt_message = "Choose a die to upgrade (D4 or D6, format: CharacterName DieNumber):\n" + "\n".join(
-            upgradeable_dice)
+        prompt_message = create_dice_prompt_message(dice_dict, "Upgrade")
         selected_character, selected_index = await send_dm(self.game_engine, player_obj, prompt_message, need_response=True)
 
         # Find the player and upgrade the die
@@ -204,10 +207,9 @@ class CardHandler:
     async def prompt_set_die_value(self, player_name, set_value):
         player_obj = get_player_obj(self.game_engine, player_name)
         # Logic to list all dice
-        dice_list = get_list_dice(self.game_engine)
+        dice_dict = get_dice_dict(self.game_engine)
 
-        prompt_message = "Choose a die to set to value " + str(
-            set_value) + " (format: CharacterName DieNumber):\n" + "\n".join(dice_list)
+        prompt_message = create_dice_prompt_message(dice_dict, f"Set to {set_value}")
         selected_character, selected_index = await send_dm(self.game_engine, player_obj, prompt_message, need_response=True)
 
         # Find the player and set the die's value
@@ -232,31 +234,39 @@ class CardHandler:
             await send_dm(self.game_engine, player_obj, "You are not in the game.")
             return
 
-        # Collect available dice from all players using character names
-        available_dice = {p.character.name: [(idx, die) for idx, die in enumerate(p.dice_in_play)]
-                          for p in self.player_manager.players.values()}
+        # Collect available dice from all players and create a dictionary
+        dice_dict = get_dice_dict(self.game_engine)
 
-        # Prompt the player to select a die from each character
+        # Group dice by character
+        dice_by_character = {}
+        for dice_key, dice_info in dice_dict.items():
+            char_name = dice_info['character']
+            if char_name not in dice_by_character:
+                dice_by_character[char_name] = []
+            dice_by_character[char_name].append((dice_key, dice_info))
+
+            # Prompt the player to select one die from each character
         selected_dice = {}
-        for char_name, dice in available_dice.items():
-            dice_list = "\n".join([f"{idx + 1} - {die}({value})" for idx, (die, value) in dice])
-            prompt_message = f"Select a die from {char_name}:\n{dice_list}"
-            selected_character, selected_index = await send_dm(self.game_engine, player_obj, prompt_message, need_response=True)
-            selected_dice[char_name] = dice[selected_index]
-            # Remove the die rome the character
-            char_obj = get_player_obj(self.game_engine, char_name)
-            char_obj.dice_in_play.remove(dice[selected_index])
+        for char_name, char_dice in dice_by_character.items():
+            prompt_message = f"Select a die from {char_name}:\n" + "\n".join(
+                f"{dice_key} - {dice_info['die_type']}({dice_info['value']})" for dice_key, dice_info in char_dice
+            )
+            selected_dice_key = await send_dm(self.game_engine, player_obj, prompt_message, need_response=True, double=False)
+            selected_dice[selected_dice_key] = dice_dict[selected_dice_key]
+
+            # Remove the selected die from the original character
+            original_player_obj = get_player_obj(self.game_engine, char_name)
+            dice_index = dice_dict[selected_dice_key]['index']
+            original_player_obj.dice_in_play.pop(dice_index)
 
         # Prompt the player to redistribute the selected dice
-        for target_char_name, (die, value) in selected_dice.items():
-            prompt_message = f"Assign {target_char_name}'s {die}({value}) to which character? (Enter character name)"
-            new_owner_char_name = await send_dm(self.game_engine, player_obj, prompt_message, need_response=True, double=False)
-            new_owner_player = next(
-                (p for p in self.player_manager.players.values() if p.character.name == new_owner_char_name), None)
-            if not new_owner_player:
-                await send_dm(self.game_engine, player_obj, "Invalid character name.")
-                return
-            new_owner_player.dice_in_play.append((die, value))
+        for dice_key, dice_info in selected_dice.items():
+            prompt_message = f"Assign {dice_info['character']}'s {dice_info['die_type']}({dice_info['value']}) to which character? (Enter character name)"
+            new_owner_char_name = await send_dm(self.game_engine, player_obj, prompt_message, need_response=True,
+                                                double=False)
+            new_owner_player = get_player_name_by_character(self.game_engine, new_owner_char_name)
+            new_owner_player_obj = get_player_obj(self.game_engine, new_owner_player)
+            new_owner_player_obj.dice_in_play.append((dice_info['die_type'], dice_info['value']))
 
     async def handle_jerry_dice(self, player_obj, bonuses):
         dice_list = []

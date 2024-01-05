@@ -61,9 +61,9 @@ async def join_game(ctx, character_name: str):
     character_name = character_name.lower().capitalize()
 
     game_engine.update_ctx(ctx)
-    response = await game_engine.player_manager.add_player(player_name, discord_id, character_name)
+    await game_engine.player_manager.add_player(player_name, discord_id, character_name)
 
-    await ctx.send(response)
+
 
 
 @bot.command(name="add_bot")
@@ -83,26 +83,26 @@ async def add_bot_command(ctx, character_name: str):
 @bot.command(name="start_game")
 async def start_game(ctx):
     game_engine.update_ctx(ctx)
-    start_response = await game_engine.start_game()
-    await ctx.send(start_response)
+    await game_engine.start_game()
+
 
 
 @bot.command(name="play_card")
 async def play_card_command(ctx, card_number: int):
     game_engine.update_ctx(ctx)
     player_name = ctx.author.name
-    response = await game_engine.card_handler.play_card(player_name, card_number)
+    await game_engine.card_handler.play_card(player_name, card_number)
     # # await ctx.send(response)
     # await game_engine.player_manager.display_hand(player_name)
     # if "Nope" not in response:
     #     await game_engine.next_turn(ctx, player_name)
-    await ctx.send(response)
+
 
 @bot.command(name="game_state")
 async def game_state_command(ctx):
     game_engine.update_ctx(ctx)
-    response = game_engine.game_state.display_game_state()
-    await ctx.send(response)
+    game_engine.game_state.display_game_state()
+
 
 
 @bot.command(name="end_round")

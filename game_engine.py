@@ -32,12 +32,13 @@ class GameEngine:
             return False
 
         self.player_order = list(self.player_manager.players.keys())
-        await self.start_round()
+        await send_public_message(self, "Let the Game Begin!")
+        for player_name in self.player_manager.players:
+            await self.player_manager.draw_cards(player_name, 7)
 
-        await send_public_message(self, "Game has started!")
+        await self.start_round()
         self.game_started = True
 
-        return True
 
     def get_current_player(self):
         return self.player_manager.players[self.player_order[self.current_turn_player_index]]
@@ -63,8 +64,10 @@ class GameEngine:
         # Advance to the next player
         self.current_turn_player_index = (self.current_turn_player_index + 1) % len(self.player_order)
         current_player = self.get_current_player()
+        self.game_state.current_turn += 1
 
-        await send_public_message(self, f"It's now {current_player.character.name}'s turn.\n***\n  ")
+        await send_public_message(self, f"***It's now {current_player.character.name}'s turn.*** ")
+        await self.game_state.display_game_state()
 
         if current_player.discord_id == "Bot":
             # It's the AI bot's turn
@@ -113,7 +116,6 @@ class GameEngine:
 
             # Update score (assuming score is just the sum of roll values)
             self.game_state.calculate_score(player_name)
-            await self.player_manager.display_hand(player_name)
 
         # Load up states for first round nope. do it twice since it goes off of next to last card
         for name in self.player_manager.players:
@@ -128,8 +130,9 @@ class GameEngine:
         print(first_player)
         self.current_turn_player_index = self.player_order.index(first_player_name)
 
-        await send_public_message(self, f"Game started. It's {first_player.character.name}'s turn.\n***\n  ")
-
+        await send_public_message(self, f"***Round {self.game_state.current_round} has started. It's {first_player.character.name}'s turn.*** ")
+        self.game_state.current_turn = 1
+        await self.game_state.display_game_state()
         # Announce the start of the game and whose turn it is
         current_player = self.get_current_player()
         if current_player.discord_id == "Bot":
@@ -147,7 +150,7 @@ class GameEngine:
         round_start = await self.start_round()
         if self.is_final_round:
             await send_public_message(self, "***The final round has begun! The boss card is drawn.***")
-        await self.game_state.display_game_state()
+
 
     def determine_winner(self):
         # Determine the round winner

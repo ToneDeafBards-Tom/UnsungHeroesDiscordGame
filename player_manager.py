@@ -39,7 +39,6 @@ class PlayerManager:
                 self.players[player_name] = new_player
                 self.current_players += 1
                 await send_public_message(self.game_engine, f"{player_name} chose {character_name}.")
-                await self.draw_cards(player_name, 7)
 
         elif player_name in self.players:
             return f"{player_name} is already in the game."
@@ -64,17 +63,18 @@ class PlayerManager:
         minion_message = construct_minion_message(player_obj)
         treasure_message = construct_treasure_message(player_obj, self.game_engine.is_final_round)
 
-        full_message = f"*** New Hand ***\n\n{hand_message}{minion_message}{treasure_message}"
+        full_message = f"*** New Hand ***\n{hand_message}{minion_message}{treasure_message}"
         await send_dm(self.game_engine, player_obj, full_message)
 
     async def player_choose_treasure(self, player_name, treasures):
         player_obj = get_player_obj(self.game_engine, player_name)
-        treasure_message = "** Choose a Treasure **\n"
+        treasure_message = "**Choose a Treasure**\n"
         treasure_message += "\n".join([
                         f"{idx + 1} - {card['name']}, {card['bonuses']}"
                         for idx, card in enumerate(treasures)
                     ])
         chosen_index = await send_dm(self.game_engine, player_obj, treasure_message, need_response=True, double=False)
-        return treasures[chosen_index]
+        print(chosen_index)
+        return treasures[int(chosen_index)-1]
 
 

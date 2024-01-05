@@ -8,6 +8,7 @@ class GameState:
         self.game_engine = game_engine
         self.player_manager = player_manager
         self.current_round = 0
+        self.current_turn = 0
         self.current_minion = None
         self.previous_states = {}  # Stores the last two states for each player
         self.last_player = None
@@ -43,8 +44,9 @@ class GameState:
                 player_obj.score += int(bonus[1:])
 
     async def display_game_state(self):
-        game_state_message = f"Round Number: {self.current_round}\n"
-        game_state_message += f"Current Minion: {self.current_minion.name}, Bonus: {self.current_minion.bonus}\n\n"
+
+        game_state_message = f"---\n**Round Number: {self.current_round}**, Turn {self.current_turn}\n"
+        game_state_message += f"Current Minion: {self.current_minion.name}, Bonus: {self.current_minion.bonus}"
 
         for player_name, player in self.player_manager.players.items():
             cards_in_hand = len(player.hand)
@@ -52,13 +54,15 @@ class GameState:
             dice_in_play = ", ".join(f"{die}({value})" for die, value in player.dice_in_play)
             treasure_count = len(player.treasure)
             minion_count = len(player.minions)
+            game_state_message += "\n\n"
             game_state_message += (
-                f"Player: {player.character.name}\n"
-                f"Cards in hand: {cards_in_hand}, Minions: {minion_count}, Treasures: {treasure_count}\n"
-                f"Cards in play: {cards_in_play}\n"
-                f"Dice in play: {dice_in_play}\n"
-                f"Score: {player.score}\n\n"
+                f"> Player: **{player.character.name}**\n"
+                f"> Cards in hand: {cards_in_hand}, Minions: {minion_count}, Treasures: {treasure_count}\n"
+                f"> Cards in play: {cards_in_play}\n"
+                f"> Dice in play: {dice_in_play}\n"
+                f"> Score: **{player.score}**\n"
             )
+        game_state_message += "---"
         await send_public_message(self.game_engine, game_state_message)
 
     def save_state(self, player_name):
