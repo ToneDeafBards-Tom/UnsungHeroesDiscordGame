@@ -3,6 +3,7 @@ import re
 import asyncio
 
 from player import Player
+from helper_functions import determine_lead, get_all_player_objs
 
 
 class AIBot(Player):
@@ -13,8 +14,9 @@ class AIBot(Player):
     async def choose_play_card(self, game_engine, ctx):
         print("IM THINKING")
         await asyncio.sleep(2)
+        player_objs = get_all_player_objs(game_engine)
+        print(determine_lead(player_objs, self))
         # determine if winning
-
         # Implement the AI's decision-making logic here
         # For example, randomly choose an action
         # This is a placeholder logic; you can develop more complex strategies
