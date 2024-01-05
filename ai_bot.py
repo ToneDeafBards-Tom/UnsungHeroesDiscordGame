@@ -24,6 +24,7 @@ class AIBot(Player):
         print("here are my playable cards", playable_cards)
         print("choose one at random")
         card_to_play = random.choice(playable_cards)
+        print("choose one at random", card_to_play)
         await self.game_engine.card_handler.play_card(self.name, card_to_play)
         await self.game_engine.game_state.display_game_state()
         await asyncio.sleep(2)

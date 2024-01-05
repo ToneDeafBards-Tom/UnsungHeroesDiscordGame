@@ -64,7 +64,7 @@ class GameEngine:
         self.current_turn_player_index = (self.current_turn_player_index + 1) % len(self.player_order)
         current_player = self.get_current_player()
 
-        await send_public_message(self, f"It's now {current_player.character.name}'s turn.")
+        await send_public_message(self, f"It's now {current_player.character.name}'s turn.\n***\n  ")
 
         if current_player.discord_id == "Bot":
             # It's the AI bot's turn
@@ -128,7 +128,7 @@ class GameEngine:
         print(first_player)
         self.current_turn_player_index = self.player_order.index(first_player_name)
 
-        await send_public_message(self, f"Game started. It's {first_player.character.name}'s turn.")
+        await send_public_message(self, f"Game started. It's {first_player.character.name}'s turn.\n***\n  ")
 
         # Announce the start of the game and whose turn it is
         current_player = self.get_current_player()
@@ -167,7 +167,7 @@ class GameEngine:
         # Assuming two treasures are drawn and one is chosen
         drawn_treasures = [self.card_handler.treasures.pop() for _ in range(2)]
         # Implement logic for player to choose one treasure
-        chosen_treasure = await self.player_manager.player_choose_treasure(round_winner, drawn_treasures)
+        chosen_treasure = await self.player_manager.player_choose_treasure(round_winner.name, drawn_treasures)
         round_winner.treasure.append(chosen_treasure)
         for player_obj in get_all_player_objs(self):
             if player_obj.character.name == "Tilda" and player_obj is not round_winner:
