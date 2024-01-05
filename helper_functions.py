@@ -42,6 +42,10 @@ def add_wanda_die(player_obj, die):
     return f"\nWanda's {die} exploded and got a {die_roll}!"
 
 
+def get_player_obj(game_engine, player_name):
+    return game_engine.player_manager.players.get(player_name)
+
+
 def get_all_player_objs(game_engine):
     player_objs = [game_engine.player_manager.players.get(player_name) for player_name in
                    game_engine.player_manager.players]
@@ -53,3 +57,17 @@ def determine_lead(player_objs, me):
     difference = [score - me.score for score in player_scores]
     return max(difference)
 
+
+# For sending public messages
+async def send_public_message(ctx, message):
+    await ctx.send(message)
+
+
+# For sending DMs
+async def send_dm(game_engine, user_id, message):
+    if user_id != "Bot":
+        user = await game_engine.bot.fetch_user(user_id)
+        dm_channel = await user.create_dm()
+        await dm_channel.send(message)
+    else:
+        print("Bot DM:", message)  # Handle bot DMs as needed
