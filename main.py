@@ -54,13 +54,17 @@ async def on_ready():
 
 @bot.command(name="join_game")
 async def join_game(ctx, character_name: str):
+    # add stuff about filtering characters here
     player_name = ctx.author.name
     discord_id = ctx.author.id
     # Normalize the character name for case-insensitivity
     character_name = character_name.lower().capitalize()
-    join_response = game_engine.player_manager.add_player(player_name, discord_id)
-    choose_response = game_engine.player_manager.choose_character(player_name, character_name)
-    await ctx.send(join_response + "\n" + choose_response)
+
+    game_engine.update_ctx(ctx)
+    response = await game_engine.player_manager.add_player(player_name, discord_id, character_name)
+
+    await ctx.send(response)
+
 
 @bot.command(name="add_bot")
 async def add_bot_command(ctx, character_name: str):
@@ -72,49 +76,53 @@ async def add_bot_command(ctx, character_name: str):
         await ctx.send("Cannot add AI bots after the game has started.")
         return
 
-    ai_bot = AIBot("AI_" + character_name, character_name, "Bot", game_engine)  # Create an AI bot instance
-    response = game_engine.player_manager.add_ai_player(ai_bot)  # Add the AI bot to the game engine
-    await ctx.send(response)
+    game_engine.update_ctx(ctx)
+    await game_engine.player_manager.add_player("AI_" + character_name, "Bot", character_name)
 
 
 @bot.command(name="start_game")
 async def start_game(ctx):
-    start_response = await game_engine.start_game(ctx)
-    game_state = game_engine.game_state.display_game_state()
-    await ctx.send(game_state)
+    game_engine.update_ctx(ctx)
+    start_response = await game_engine.start_game()
+    await ctx.send(start_response)
 
 
 @bot.command(name="play_card")
 async def play_card_command(ctx, card_number: int):
+    game_engine.update_ctx(ctx)
     player_name = ctx.author.name
-    response = await game_engine.card_handler.play_card(player_name, card_number, ctx)
-    # await ctx.send(response)
-    await game_engine.player_manager.display_hand(player_name)
-    if "Nope" not in response:
-        await game_engine.next_turn(ctx, player_name)
-    await game_state_command(ctx)
+    response = await game_engine.card_handler.play_card(player_name, card_number)
+    # # await ctx.send(response)
+    # await game_engine.player_manager.display_hand(player_name)
+    # if "Nope" not in response:
+    #     await game_engine.next_turn(ctx, player_name)
+    await ctx.send(response)
 
 @bot.command(name="game_state")
 async def game_state_command(ctx):
+    game_engine.update_ctx(ctx)
     response = game_engine.game_state.display_game_state()
     await ctx.send(response)
 
 
 @bot.command(name="end_round")
 async def end_round_command(ctx):
-    await game_engine.end_round(ctx)
+    game_engine.update_ctx(ctx)
+    await game_engine.end_round()
 
 
 @bot.command(name="restart_game")
 async def restart_game_command(ctx):
+    game_engine.update_ctx(ctx)
     game_engine.restart_game()
     await ctx.send("Game has been reset. Rejoin to play again")
 
 
 @bot.command(name="pass")
 async def pass_command(ctx):
+    game_engine.update_ctx(ctx)
     player_name = ctx.author.name
-    await game_engine.next_turn(ctx, player_name)
+    await game_engine.next_turn(player_name)
 
 
 

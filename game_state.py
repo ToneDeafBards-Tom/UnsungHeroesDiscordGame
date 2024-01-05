@@ -1,5 +1,7 @@
 from characters.minions import minions
 from characters.treasures import treasure_deck
+from helper_functions import get_all_player_objs, get_player_obj, send_dm, send_public_message
+
 
 class GameState:
     def __init__(self, game_engine, player_manager):
@@ -17,30 +19,30 @@ class GameState:
         self.last_player = None
 
     def calculate_score(self, player_name):
-        player = self.player_manager.players.get(player_name)
-        if not player:
+        player_obj = get_player_obj(self.game_engine, player_name)
+        if not player_obj:
             return
 
         # Example score calculation logic
-        player.score = sum(value for _, value in player.dice_in_play)
-        for card in player.cards_in_play:
+        player_obj.score = sum(value for _, value in player_obj.dice_in_play)
+        for card in player_obj.cards_in_play:
             # Handle bonuses on the card
             for bonus in card.get("bonuses", []):
                 if bonus.startswith("+1 per"):
-                    player.score += min(len(player.dice_in_play), 8)
+                    player_obj.score += min(len(player_obj.dice_in_play), 8)
                 elif bonus.startswith("+"):
-                    player.score += int(bonus[1:])
+                    player_obj.score += int(bonus[1:])
 
-        for minion in player.used_minions:
+        for minion in player_obj.used_minions:
             for bonus in minion.bonus:
                 if bonus.startswith("+"):
-                    player.score += int(bonus[1:])
+                    player_obj.score += int(bonus[1:])
 
-        for bonus in player.passive_bonus:
+        for bonus in player_obj.passive_bonus:
             if bonus.startswith("+"):
-                player.score += int(bonus[1:])
+                player_obj.score += int(bonus[1:])
 
-    def display_game_state(self):
+    async def display_game_state(self):
         game_state_message = f"Round Number: {self.current_round}\n"
         game_state_message += f"Current Minion: {self.current_minion.name}, Bonus: {self.current_minion.bonus}\n\n"
 
@@ -57,15 +59,15 @@ class GameState:
                 f"Dice in play: {dice_in_play}\n"
                 f"Score: {player.score}\n\n"
             )
-        return game_state_message
+        await send_public_message(self.game_engine, game_state_message)
 
     def save_state(self, player_name):
-        player = self.player_manager.players.get(player_name)
-        if player:
+        player_obj = get_player_obj(self.game_engine, player_name)
+        if player_obj:
             state_snapshot = {
-                "dice_in_play": list(player.dice_in_play),
-                "cards_in_play": list(player.cards_in_play),
-                "score": player.score,
+                "dice_in_play": list(player_obj.dice_in_play),
+                "cards_in_play": list(player_obj.cards_in_play),
+                "score": player_obj.score,
                 # Add other player attributes as needed
             }
 
@@ -79,10 +81,10 @@ class GameState:
     def revert_state(self):
         # Revert to the previous state
         for player_name in self.player_manager.players:
-            player = self.player_manager.players.get(player_name)
+            player_obj = get_player_obj(self.game_engine, player_name)
             if player_name in self.previous_states and self.previous_states[player_name][1]:
                 previous_state = self.previous_states[player_name][1]
-                player.dice_in_play = previous_state["dice_in_play"]
-                player.cards_in_play = previous_state["cards_in_play"]
-                player.score = previous_state["score"]
+                player_obj.dice_in_play = previous_state["dice_in_play"]
+                player_obj.cards_in_play = previous_state["cards_in_play"]
+                player_obj.score = previous_state["score"]
                 # Revert other player attributes as needed

@@ -1,14 +1,12 @@
-import random
-import re
-import asyncio
-import discord
-from PIL import Image
-
 from player import Player
+from helper_functions import (send_dm, send_public_message, shuffle_deck, get_player_obj,
+                              construct_hand_message, construct_minion_message, construct_treasure_message)
+
 from characters.alfred import Alfred
 from characters.wanda import Wanda
 from characters.jerry import Jerry
 from characters.tilda import Tilda
+from ai_bot import AIBot
 
 characters = {"Alfred": Alfred, "Wanda": Wanda, "Jerry": Jerry, "Tilda": Tilda}
 
@@ -27,140 +25,56 @@ class PlayerManager:
         self.players = {}
         self.current_players = 0
 
-    async def send_dm(self, player_id, message):
-        if player_id != "Bot":
-            user = await self.bot.fetch_user(player_id)
-            dm_channel = await user.create_dm()
-            await dm_channel.send(message)
-        else:
-            print("bot dm", message)
-
-    def add_player(self, player_name, discord_id):
+    async def add_player(self, player_name, discord_id, character_name):
         # Add a new player if not already present and max players not reached
         if player_name not in self.players and self.current_players < self.max_players:
-            self.players[player_name] = Player(player_name, None, discord_id)
-            self.current_players += 1
-            return f"{player_name} has joined the game."
+            if character_name in self.characters:
+                character_class = self.characters[character_name]
+                if discord_id == "Bot":
+                    new_player = AIBot(player_name, character_class(), discord_id, self.game_engine)
+                else:
+                    new_player = Player(player_name, character_class(), discord_id)
+                new_player.deck = [card.copy() for card in character_class().deck]
+                new_player.deck = shuffle_deck(new_player.deck)
+                self.players[player_name] = new_player
+                self.current_players += 1
+                await send_public_message(self.game_engine, f"{player_name} chose {character_name}.")
+                await self.draw_cards(player_name, 7)
+
         elif player_name in self.players:
             return f"{player_name} is already in the game."
         else:
             return "Maximum number of players reached."
 
-    def add_ai_player(self, ai_bot):
-        if ai_bot.name not in self.players and self.current_players < self.max_players:
-            self.players[ai_bot.name] = ai_bot
-            self.choose_character(ai_bot.name, ai_bot.character)
-            self.current_players += 1
-            return f"{ai_bot.name} has joined the game."
-        elif ai_bot.name in self.players:
-            return f"{ai_bot.name} is already in the game."
-        else:
-            return "Maximum number of players reached."
+    async def draw_cards(self, player_name, num_cards):
+        player_obj = get_player_obj(self.game_engine, player_name)
+        hand = player_obj.deck[:num_cards]
+        player_obj.hand.extend(hand)
+        player_obj.deck = player_obj.deck[num_cards:]
 
-    def choose_character(self, player_name, character_name):
-        if player_name in self.players:
-            if character_name in self.characters:
-                character_class = self.characters[character_name]
-                self.players[player_name].character = character_class()  # Set the character
-
-                # Initialize the player's deck with the character's deck
-                self.players[player_name].deck = [card.copy() for card in character_class().deck]
-
-                return f"{player_name} chose {character_name}."
-            else:
-                return f"{character_name} is not a valid character."
-        else:
-            return f"{player_name} is not in the game. Please join the game first."
-
-    def shuffle_deck(self, deck):
-        random.shuffle(deck)
-        return deck
-
-    def shuffle_player_deck(self, player_name):
-        player = self.players.get(player_name)
-        if player:
-            self.shuffle_deck(player.deck)
-            return f"{player_name}'s deck has been shuffled."
-        else:
-            return f"{player_name}, you need to choose a character first."
-
-    def draw_cards(self, player_name, num_cards=7):
-        player = self.players.get(player_name)
-        if player:
-            hand = player.deck[:num_cards]
-            player.hand.extend(hand)
-            player.deck = player.deck[num_cards:]
-
-            # Extracting card names from the hand
-            card_names = [card['name'] for card in hand]
-
-            return f"{player_name} drew {num_cards} cards: {', '.join(card_names)}."
-        else:
-            return f"{player_name}, you need to choose a character first."
+        await send_public_message(self.game_engine, f"{player_name} drew {num_cards} cards.")
+        await self.display_hand(player_name)
 
     async def display_hand(self, player_name):
-        player = self.players.get(player_name)
-        if player:
-            hand_message = "Cards:\n"
-            hand_message += "\n".join([
-                f"{idx + 1} - {card['name']}, {card['bonuses']}"
-                for idx, card in enumerate(player.hand)
-            ])
-
-            if player.used_minions or player.minions:
-                minion_message = "\n\nMinions:\n"
-                minion_message += "\n".join([
-                    f"{idx + 1 + len(player.hand)} - {minion.name}, {minion.bonus}"
-                    for idx, minion in enumerate(player.minions)
-                ])
-
-                if player.used_minions and player.minions:
-                    minion_message += "\n"
-
-                minion_message += "\n".join([
-                    f"Used: {minion.name}, {minion.bonus}"
-                    for idx, minion in enumerate(player.used_minions)
-                ])
-                hand_message += minion_message
-
-            # Add treasures and bonuses to the message
-            if player.treasure:
-                treasure_message = "\n\nTreasures:\n"
-                if self.game_engine.is_final_round:
-                    treasure_message += "\n".join([
-                        f"{idx + 1 + len(player.hand) + len(player.minions)} - {card['name']}, {card['bonuses']}"
-                        for idx, card in enumerate(player.treasure)
-                    ])
-                else:
-                    treasure_message += "\n".join([
-                        f"{card['name']}, {card['bonuses']}"
-                        for idx, card in enumerate(player.treasure)
-                    ])
-                hand_message += treasure_message
-
-            full_message = f"*** New Hand ***\n\n{hand_message}"
-            await self.send_dm(player.discord_id, full_message)
-        else:
-            # Handle error if player not found
+        player_obj = get_player_obj(self.game_engine, player_name)
+        if not player_obj:
             return f"{player_name}, you need to choose a character first."
 
+        hand_message = construct_hand_message(player_obj)
+        minion_message = construct_minion_message(player_obj)
+        treasure_message = construct_treasure_message(player_obj, self.game_engine.is_final_round)
 
-    async def player_choose_treasure(self, player, treasures):
+        full_message = f"*** New Hand ***\n\n{hand_message}{minion_message}{treasure_message}"
+        await send_dm(self.game_engine, player_obj, full_message)
+
+    async def player_choose_treasure(self, player_name, treasures):
+        player_obj = get_player_obj(self.game_engine, player_name)
         treasure_message = "** Choose a Treasure **\n"
         treasure_message += "\n".join([
                         f"{idx + 1} - {card['name']}, {card['bonuses']}"
                         for idx, card in enumerate(treasures)
                     ])
-        await self.send_dm(player.discord_id, treasure_message)
+        chosen_index = await send_dm(self.game_engine, player_obj, treasure_message, need_response=True, double=False)
+        return treasures[chosen_index]
 
-        # Wait for player's choice
-        def check(m):
-            return m.author.id == player.discord_id and m.channel.type == discord.ChannelType.private
-
-        try:
-            response = await self.bot.wait_for('message', check=check, timeout=60.0)
-            chosen_index = int(response.content.strip()) - 1
-            return treasures[chosen_index]
-        except (IndexError, ValueError, asyncio.TimeoutError):
-            return None  # Or handle invalid choice differently
 

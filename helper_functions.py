@@ -1,4 +1,13 @@
 import random
+import asyncio
+import discord
+
+
+def shuffle_deck(deck, player_name=None):
+    random.shuffle(deck)
+    if player_name:
+        f"{player_name}'s deck has been shuffled."
+    return deck
 
 
 def determine_first_player(players):
@@ -52,22 +61,109 @@ def get_all_player_objs(game_engine):
     return player_objs
 
 
+def get_player_name_by_character(game_engine, character_name):
+    for player_obj in get_all_player_objs(game_engine):
+        if player_obj.character.name.lower() == character_name.lower():
+            return player_obj.name
+    return None
+
+
 def determine_lead(player_objs, me):
     player_scores = [player.score for player in player_objs]
     difference = [score - me.score for score in player_scores]
     return max(difference)
 
 
+def get_list_dice(game_engine, exclude_dice=[]):
+    dice_list = []
+    for p_obj in get_all_player_objs(game_engine):
+        character_name = p_obj.character.name
+        for idx, (die, value) in enumerate(p_obj.dice_in_play):
+            if exclude_dice:
+                if die not in exclude_dice:
+                    dice_list.append(f"{character_name} {idx + 1} - {die}({value})")
+            else:
+                dice_list.append(f"{character_name} {idx + 1} - {die}({value})")
+
+    return dice_list
+
+
 # For sending public messages
-async def send_public_message(ctx, message):
-    await ctx.send(message)
+async def send_public_message(game_engine, message):
+    await game_engine.ctx.send(message)
 
 
 # For sending DMs
-async def send_dm(game_engine, user_id, message):
-    if user_id != "Bot":
-        user = await game_engine.bot.fetch_user(user_id)
+async def send_dm(game_engine, player_obj, message, need_response=False, double=True):
+    discord_id = player_obj.discord_id
+    if discord_id != "Bot":
+        user = await game_engine.bot.fetch_user(discord_id)
         dm_channel = await user.create_dm()
         await dm_channel.send(message)
     else:
         print("Bot DM:", message)  # Handle bot DMs as needed
+        if need_response:
+            response = await player_obj.make_choice(message)
+            if double:
+                selected_character, selected_index = response.strip().split()
+                selected_index = int(selected_index) - 1
+                return selected_character, selected_index
+            return response.strip()
+
+    if need_response:
+        timeout = 60
+        intervals = [5, 15, 30, 45]
+
+        def check(m):
+            return m.author.id == discord_id and m.channel.type == discord.ChannelType.private
+
+        try:
+            for remaining in range(timeout, 0, -1):
+                if remaining in intervals:
+                    await dm_channel.send(f"You have {remaining}s left to respond.")
+                response = await game_engine.bot.wait_for('message', check=check, timeout=1)
+                print('DM', response)
+                if double:
+                    selected_character, selected_index = response.content.strip().split()
+                    selected_index = int(selected_index) - 1
+                    return selected_character, selected_index
+                return response.content.strip()
+        except asyncio.TimeoutError:
+            await dm_channel.send("Time's up!")
+            return None
+
+
+def construct_hand_message(player_obj):
+    return "Cards:\n" + "\n".join(
+        f"{idx + 1} - {card['name']}, {card['bonuses']}" for idx, card in enumerate(player_obj.hand)
+    )
+
+
+def construct_minion_message(player_obj):
+    message = "\n\nMinions:\n"
+    message += "\n".join(
+        f"{idx + 1 + len(player_obj.hand)} - {minion.name}, {minion.bonus}" for idx, minion in
+        enumerate(player_obj.minions)
+    )
+    if player_obj.used_minions and player_obj.minions:
+        message += "\n"
+    message += "\n".join(
+        f"Used: {minion.name}, {minion.bonus}" for idx, minion in enumerate(player_obj.used_minions)
+    )
+    return message
+
+
+def construct_treasure_message(player_obj, final_round):
+    message = "\n\nTreasures:\n"
+    if final_round:
+        message += "\n".join(
+            f"{idx + 1 + len(player_obj.hand) + len(player_obj.minions)} - {card['name']}, {card['bonuses']}" for
+            idx, card
+            in enumerate(player_obj.treasure)
+        )
+    else:
+        message += "\n".join(
+            f"{card['name']}, {card['bonuses']}" for idx, card in enumerate(player_obj.treasure)
+        )
+    return message
+

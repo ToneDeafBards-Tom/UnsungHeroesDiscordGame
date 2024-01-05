@@ -11,7 +11,7 @@ class AIBot(Player):
         super().__init__(name, character, discord_id)
         self.game_engine = game_engine
 
-    async def choose_play_card(self, game_engine, ctx):
+    async def choose_play_card(self, game_engine):
         print("IM THINKING")
         await asyncio.sleep(2)
         player_objs = get_all_player_objs(game_engine)
@@ -24,15 +24,12 @@ class AIBot(Player):
         print("here are my playable cards", playable_cards)
         print("choose one at random")
         card_to_play = random.choice(playable_cards)
-        await self.game_engine.card_handler.play_card(self.name, card_to_play, ctx)
-        response = self.game_engine.game_state.display_game_state()
-        await ctx.send(response)
+        await self.game_engine.card_handler.play_card(self.name, card_to_play)
+        await self.game_engine.game_state.display_game_state()
         await asyncio.sleep(2)
-        task = asyncio.create_task(self.game_engine.next_turn(ctx, self.name))
-
+        task = asyncio.create_task(self.game_engine.next_turn(self.name))
 
     # Add more methods as needed for different game actions
-
     async def make_choice(self, message):
         if message.startswith("Choose"):
             # Regular expression to match patterns like "Wanda 1 - D8(3)"
