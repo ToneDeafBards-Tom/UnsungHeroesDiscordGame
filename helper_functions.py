@@ -10,30 +10,6 @@ def shuffle_deck(deck, player_name=None):
     return deck
 
 
-def determine_first_player(players):
-    # Sort players by score, minion count, and treasure count
-    sorted_players = sorted(players.items(), key=lambda item: (item[1].score, len(item[1].minions), len(item[1].treasure)))
-
-    # Check if the top players are tied
-    top_players = [sorted_players[0]]
-    for player in sorted_players[1:]:
-        player_ob = player[1]
-        top_player = top_players[0][1]
-        if (player_ob.score == top_player.score and
-                len(player_ob.minions) == len(top_player.minions) and
-                len(player_ob.treasure) == len(top_player.treasure)):
-            top_players.append(player)
-        else:
-            break
-
-    # If there's a tie, choose randomly among the top players
-    if len(top_players) > 1:
-        return random.choice(top_players)
-
-    # Otherwise, return the top player
-    return top_players[0]
-
-
 def roll_dice(die):
     if die == "D4":
         return random.randint(1, 4)
@@ -141,7 +117,7 @@ async def send_dm(game_engine, player_obj, message, need_response=False, double=
         dm_channel = await user.create_dm()
         await dm_channel.send(message)
     else:
-        print("Bot DM:", message)  # Handle bot DMs as needed
+        # print("Bot DM:", message)  # Handle bot DMs as needed
         if need_response:
             response = await player_obj.make_choice(message)
             if double:

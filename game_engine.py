@@ -6,9 +6,10 @@ from player_manager import PlayerManager
 from game_state import GameState
 from card_handler import CardHandler
 
-from helper_functions import (roll_dice, add_wanda_die, determine_first_player, send_dm, send_public_message,
+from helper_functions import (roll_dice, add_wanda_die, send_dm, send_public_message,
                               get_all_player_objs, get_player_obj)
 from characters.tilda import rat_bonus
+
 
 class GameEngine:
     def __init__(self, bot):
@@ -22,6 +23,7 @@ class GameEngine:
         self.player_order = []  # Will hold the order of players
         self.consecutive_passes = 0  # Counter for consecutive passes
         self.game_started = False
+        self.player_obj_in_lead = ""
 
     def update_ctx(self, ctx):
         self.ctx = ctx
@@ -65,6 +67,9 @@ class GameEngine:
         self.current_turn_player_index = (self.current_turn_player_index + 1) % len(self.player_order)
         current_player = self.get_current_player()
         self.game_state.current_turn += 1
+
+        first_player_obj = self.determine_player_in_lead()
+        self.player_obj_in_lead = first_player_obj
 
         await send_public_message(self, f"***It's now {current_player.character.name}'s turn.*** ")
         await self.game_state.display_game_state()
@@ -124,13 +129,13 @@ class GameEngine:
         for name in self.player_manager.players:
             self.game_state.save_state(name)
 
-        first_player_name, first_player = determine_first_player(self.player_manager.players)
+        first_player_obj = self.determine_player_in_lead()
+        self.player_obj_in_lead = first_player_obj
 
-        print(self.player_order)
-        print(first_player)
-        self.current_turn_player_index = self.player_order.index(first_player_name)
+        last_play_obj = self.determine_last_player()
+        self.current_turn_player_index = self.player_order.index(last_play_obj.name)
 
-        await send_public_message(self, f"***Round {self.game_state.current_round} has started. It's {first_player.character.name}'s turn.*** ")
+        await send_public_message(self, f"***Round {self.game_state.current_round} has started. It's {last_play_obj.character.name}'s turn.*** ")
         self.game_state.current_turn = 1
         await self.game_state.display_game_state()
         # Announce the start of the game and whose turn it is
@@ -141,6 +146,58 @@ class GameEngine:
             task = asyncio.create_task(current_player.choose_play_card(self))
 
         return round_message
+
+    def determine_player_in_lead(self):
+        # Sort players by score, minion count, and treasure count
+        player_objs = get_all_player_objs(self)
+        sorted_players = sorted(player_objs, key=lambda player: (-player.score, len(player.minions), len(player.treasure)))
+        print('sorted', sorted_players)
+
+        # Check if the top players are tied
+        top_players = [sorted_players[0]]
+        for player_ob in sorted_players[1:]:
+            top_player = top_players[0]
+            if (player_ob.score == top_player.score and
+                    len(player_ob.minions) == len(top_player.minions) and
+                    len(player_ob.treasure) == len(top_player.treasure)):
+                top_players.append(player_ob)
+            else:
+                break
+
+        # If there's a tie, choose randomly among the top players
+        if len(top_players) > 1:
+            # see if one is top from last time.
+            if self.player_obj_in_lead in top_players:
+                top_players.remove(self.player_obj_in_lead)
+            return random.choice(top_players)
+
+        # Otherwise, return the top player
+        return top_players[0]
+
+    def determine_last_player(self):
+        # Sort players by score, minion count, and treasure count
+        player_objs = get_all_player_objs(self)
+        sorted_players = sorted(player_objs, key=lambda player: (player.score, -len(player.minions), -len(player.treasure)))
+        print('bottom sorted', sorted_players)
+
+        # Check if the top players are tied
+        bottom_players = [sorted_players[0]]
+        for player_obj in sorted_players[1:]:
+            bottom_player = bottom_players[0]
+            if (player_obj.score == bottom_player.score and
+                    len(player_obj.minions) == len(bottom_player.minions) and
+                    len(player_obj.treasure) == len(bottom_player.treasure)):
+                bottom_players.append(player_obj)
+            else:
+                break
+
+        # If there's a tie, choose randomly among the top players
+        if len(bottom_players) > 1:
+            # see if one is top from last time.
+            return random.choice(bottom_players)
+
+        # Otherwise, return the top player
+        return bottom_players[0]
 
     async def end_round(self):
         round_winner = self.determine_winner()

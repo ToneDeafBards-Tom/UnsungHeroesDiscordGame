@@ -60,8 +60,12 @@ class GameState:
                 f"> Cards in hand: {cards_in_hand}, Minions: {minion_count}, Treasures: {treasure_count}\n"
                 f"> Cards in play: {cards_in_play}\n"
                 f"> Dice in play: {dice_in_play}\n"
-                f"> Score: **{player.score}**\n"
-            )
+                f"> Score: **{player.score}**"
+                )
+            if player == self.game_engine.player_obj_in_lead:
+                game_state_message += " (winning)"
+
+            game_state_message += "\n"
         game_state_message += "---"
         await send_public_message(self.game_engine, game_state_message)
 

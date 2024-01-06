@@ -156,8 +156,8 @@ class CardHandler:
         selected_character, selected_index = await send_dm(self.game_engine, player_obj, prompt_message, need_response=True)
         # Translate character name back to player name
         selected_player_name = get_player_name_by_character(self.game_engine, selected_character)
-        rerolled, new_roll = self.reroll_die(selected_player_name, selected_index)
-        await send_public_message(self.game_engine, f"\n{player_name} rerolled {selected_character}'s {rerolled} and got {new_roll}.")
+        rerolled, new_roll, old_roll = self.reroll_die(selected_player_name, selected_index)
+        await send_public_message(self.game_engine, f"\n{player_name} rerolled {selected_character}'s {rerolled}({old_roll}) and got {new_roll}.")
 
     def reroll_die(self, player_name, die_index):
         player_obj = get_player_obj(self.game_engine, player_name)
@@ -168,10 +168,12 @@ class CardHandler:
             # Retrieve the die to reroll
             die_to_reroll = player_obj.dice_in_play[die_index]
             # Perform the reroll
+            print('rerolling dice', die_to_reroll[0], die_to_reroll[1])
             new_roll = roll_dice(die_to_reroll[0])  # Rerolling the same type of die
+            print('got', new_roll)
             player_obj.dice_in_play[die_index] = (die_to_reroll[0], new_roll)
 
-            return die_to_reroll[0], new_roll
+            return die_to_reroll[0], new_roll, die_to_reroll[1]
         except IndexError:
             return "\nInvalid die index."
 

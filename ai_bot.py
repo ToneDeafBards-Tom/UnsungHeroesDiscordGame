@@ -21,7 +21,7 @@ class AIBot(Player):
         # get Scores of all players.
         player_objs = get_all_player_objs(game_engine)
         score_deficit = determine_lead(player_objs, self)
-        if score_deficit < 0:
+        if score_deficit < 0 or self == self.game_engine.player_obj_in_lead:
             await send_public_message(self.game_engine, f"{self.character.name}: I'm in the lead, so pass.")
             task = asyncio.create_task(self.game_engine.next_turn(self.name))
         else:
