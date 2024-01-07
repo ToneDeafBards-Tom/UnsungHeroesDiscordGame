@@ -73,6 +73,7 @@ def get_dice_dict(game_engine, exclude_dice=[], only_char_name=[]):
     dice_dict = {}
     for p_obj in get_all_player_objs(game_engine):
         character_name = p_obj.character.name
+        print('car names', character_name, only_char_name)
         if not only_char_name or character_name in only_char_name:
             for idx, (die, value) in enumerate(p_obj.dice_in_play):
                 if not exclude_dice or die not in exclude_dice:
@@ -101,6 +102,7 @@ def create_dice_prompt_message(dice_dict, bonus):
     prompt_message = f"Choose a die to {bonus} (format: CharacterName DieNumber):\n"
     for key, dice_info in dice_dict.items():
         prompt_message += f"{key} - {dice_info['die_type']}({dice_info['value']})\n"
+    prompt_message += f"NA NA - For None\n"
     return prompt_message
 
 
@@ -149,6 +151,8 @@ async def send_dm(game_engine, player_obj, message, need_response=False, double=
                 print('DM', response)
                 if double:
                     selected_character, selected_index = response.content.strip().split()
+                    if selected_character == "NA":
+                        return selected_character, selected_index
                     selected_index = int(selected_index) - 1
                     return selected_character, selected_index
                 return response.content.strip()
@@ -157,45 +161,6 @@ async def send_dm(game_engine, player_obj, message, need_response=False, double=
 
         await dm_channel.send("Time's up!")
         return None
-
-
-# async def send_dm(game_engine, player_obj, message, need_response=False, double=True):
-#     discord_id = player_obj.discord_id
-#     if discord_id != "Bot":
-#         user = await game_engine.bot.fetch_user(discord_id)
-#         dm_channel = await user.create_dm()
-#         await dm_channel.send(message)
-#     else:
-#         print("Bot DM:", message)  # Handle bot DMs as needed
-#         if need_response:
-#             response = await player_obj.make_choice(message)
-#             if double:
-#                 selected_character, selected_index = response.strip().split()
-#                 selected_index = int(selected_index) - 1
-#                 return selected_character, selected_index
-#             return response.strip()
-#
-#     if need_response:
-#         timeout = 60
-#         intervals = [5, 15, 30, 45]
-#
-#         def check(m):
-#             return m.author.id == discord_id and m.channel.type == discord.ChannelType.private
-#
-#         for remaining in range(timeout, 0, -1):
-#             try:
-#                 if remaining in intervals:
-#                     await dm_channel.send(f"You have {remaining}s left to respond.")
-#                 response = await game_engine.bot.wait_for('message', check=check, timeout=1)
-#                 print('DM', response)
-#                 if double:
-#                     selected_character, selected_index = response.content.strip().split()
-#                     selected_index = int(selected_index) - 1
-#                     return selected_character, selected_index
-#                 return response.content.strip()
-#             except asyncio.TimeoutError:
-#                 await dm_channel.send("Time's up!")
-#                 return None
 
 
 def construct_hand_message(player_obj):

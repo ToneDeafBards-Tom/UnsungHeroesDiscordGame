@@ -27,7 +27,7 @@ class CardHandler:
         self.minions.append(minions[-1])  # Add the boss minion at the bottom
         self.treasures = shuffle_deck(treasure_deck)  # List of treasure cards
 
-    async def play_card(self, player_name, card_number):
+    async def play_card(self, player_name, card_number, pass_turn=True):
         player_obj = get_player_obj(self.game_engine, player_name)
         if not player_obj:
             await send_public_message(self.game_engine, f"{player_name} is not in the game.")
@@ -43,7 +43,8 @@ class CardHandler:
 
         response += await self.handle_card_bonuses(player_obj, bonuses)
         await self.finalize_card_play(player_obj, response)
-        await self.game_engine.next_turn(player_name)
+        if pass_turn:
+            await self.game_engine.next_turn(player_name)
 
     async def get_card_details(self, player_obj, card_number):
         player_name = player_obj.name
@@ -104,6 +105,10 @@ class CardHandler:
                 await self.prompt_reroll(player_name, reroll_any=False)
             elif "Upgrade" in bonus:
                 await self.prompt_upgrade_die(player_name)
+            elif "Reuse Any" in bonus:
+                await self.prompt_reuse_ability(player_name, reuse_any=True)
+            elif "Reuse" in bonus:
+                await self.prompt_reuse_ability(player_name, reuse_any=False)
             elif "Die@4" in bonus:
                 await self.prompt_set_die_value(player_name, 4)
             elif "D4@2" in bonus:
@@ -149,12 +154,14 @@ class CardHandler:
             dice_dict = get_dice_dict(self.game_engine)
         else:
             # List only the requesting player's dice
-            dice_dict = get_dice_dict(self.game_engine, only_char_name=player_name)
+            dice_dict = get_dice_dict(self.game_engine, only_char_name=player_obj.character.name)
 
         prompt_message = create_dice_prompt_message(dice_dict, "Reroll")
-        print(prompt_message)
         selected_character, selected_index = await send_dm(self.game_engine, player_obj, prompt_message, need_response=True)
         # Translate character name back to player name
+        if selected_index == "NA":
+            await send_public_message(self.game_engine, f"\n{player_name} declined the reroll.")
+            return
         selected_player_name = get_player_name_by_character(self.game_engine, selected_character)
         rerolled, new_roll, old_roll = self.reroll_die(selected_player_name, selected_index)
         await send_public_message(self.game_engine, f"\n{player_name} rerolled {selected_character}'s {rerolled}({old_roll}) and got {new_roll}.")
@@ -189,11 +196,13 @@ class CardHandler:
         prompt_message = create_dice_prompt_message(dice_dict, "Upgrade")
         selected_character, selected_index = await send_dm(self.game_engine, player_obj, prompt_message, need_response=True)
 
+        if selected_index == "NA":
+            await send_public_message(self.game_engine, f"\n{player_name} declined the Upgrade.")
+            return
         # Find the player and upgrade the die
         selected_player_name = get_player_name_by_character(self.game_engine, selected_character)
         die_upgraded, new_value = self.upgrade_die(selected_player_name, selected_index)
         response = f"\n{player_name} upgraded {selected_character}'s {die_upgraded[0]} to D8 with a new value of {new_value}"
-
         await send_public_message(self.game_engine, response)
 
     def upgrade_die(self, player_name, die_index):
@@ -214,6 +223,10 @@ class CardHandler:
         prompt_message = create_dice_prompt_message(dice_dict, f"Set to {set_value}")
         selected_character, selected_index = await send_dm(self.game_engine, player_obj, prompt_message, need_response=True)
 
+        if selected_index == "NA":
+            await send_public_message(self.game_engine, f"\n{player_name} declined the Set Die.")
+            return
+
         # Find the player and set the die's value
         selected_player_name = get_player_name_by_character(self.game_engine, selected_character)
         die_set, new_value = self.set_die(selected_player_name, selected_index, set_value)
@@ -229,6 +242,87 @@ class CardHandler:
 
         return player_obj.dice_in_play[die_index][0], set_value
 
+    async def prompt_reuse_ability(self, player_name, reuse_any=False):
+        player_obj = get_player_obj(self.game_engine, player_name)
+        discarded_item_cards = {}
+        if reuse_any:
+            # Step 1: Gather Discarded Item Cards
+            for p_obj in get_all_player_objs(self.game_engine):
+                for idx, card in enumerate(p_obj.discard):
+                    if 'Item' in card.get('keyword', []):
+                        card_key = f"{p_obj.character.name} {idx + 1}"
+                        discarded_item_cards[card_key] = {"name": card["name"],
+                                                              "bonuses": card["bonuses"],
+                                                              }
+        else:
+            for idx, card in enumerate(player_obj.discard):
+                if 'Item' in card.get('keyword', []):
+                    card_key = f"{player_obj.character.name} {idx + 1}"
+                    discarded_item_cards[card_key] = {"name": card["name"],
+                                                      "bonuses": card["bonuses"],
+                                                      }
+
+        # Check if there are any item cards available
+        if not discarded_item_cards:
+            # Send a message if no item cards are available
+            await send_dm(self.game_engine, player_obj, "No 'Item' cards in discard to reuse.")
+            return None
+
+        prompt_message = "Choose an 'Item' card to Reuse (format: CharacterName DieNumber):\n"
+        for key, card_info in discarded_item_cards.items():
+            prompt_message += f"{key} - {card_info['name']} {card_info['bonuses']}\n"
+
+        selected_character, selected_index = await send_dm(self.game_engine, player_obj, prompt_message, need_response=True)
+        selected_player_name = get_player_name_by_character(self.game_engine, selected_character)
+        selected_player_obj = get_player_obj(self.game_engine, selected_player_name)
+
+        # now pop that card out of discard, and play it
+        player_obj.hand.append(selected_player_obj.discard[selected_index])
+        selected_player_obj.discard.pop(selected_index)
+        await self.play_card(player_name, len(player_obj.hand), pass_turn=False)
+
+
+
+    async def prompt_swap_dice(self, game_engine, player):
+        # List all dice from all players except the requesting player
+        dice_dict = get_dice_dict(self.game_engine)
+
+        # Prompt for the first die to swap
+        first_die_info = await prompt_for_die_selection(game_engine, player, dice_dict, "Choose the first die to swap:")
+        if not first_die_info:
+            return "No selection made for the first die."
+
+        # Exclude the first selected die from the next selection
+        dice_dict.pop(first_die_info['key'])
+
+        # Prompt for the second die to swap
+        second_die_info = await prompt_for_die_selection(game_engine, player, dice_dict,
+                                                         "Choose the second die to swap:")
+        if not second_die_info:
+            return "No selection made for the second die."
+
+        # Perform the swap
+        swap_dice(game_engine, first_die_info, second_die_info)
+        return f"Swapped dice between {first_die_info['character']} and {second_die_info['character']}."
+
+    async def prompt_for_die_selection(self, game_engine, player, dice_dict, prompt_message):
+        # Create a message listing the dice for the player to choose from
+        dice_list_message = "\n".join([f"{key}: {info['die']}({info['value']})" for key, info in dice_dict.items()])
+        full_message = prompt_message + "\n" + dice_list_message
+        selected_key = await send_dm(game_engine, player, full_message, need_response=True, double=False)
+
+        # Find and return the selected die information
+        selected_die_info = dice_dict.get(selected_key)
+        return selected_die_info
+
+    def swap_dice(self, game_engine, first_die_info, second_die_info):
+        # Retrieve the player objects
+        first_player = get_player_obj(game_engine, first_die_info['character'])
+        second_player = get_player_obj(game_engine, second_die_info['character'])
+
+        # Swap the dice
+        first_player.dice_in_play[first_die_info['index']], second_player.dice_in_play[second_die_info['index']] = \
+            second_player.dice_in_play[second_die_info['index']], first_player.dice_in_play[first_die_info['index']]
 
     async def redistribute_dice(self, player_name):
         player_obj = get_player_obj(self.game_engine, player_name)
