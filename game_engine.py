@@ -99,7 +99,7 @@ class GameEngine:
             print(player_name, player_obj, player_obj.character)
             for die in player_obj.character.starting_roll:
                 if player_obj.character.name == "Jerry":
-                    bonuses = await self.card_handler.handle_jerry_dice(player_obj, [die])
+                    bonuses = await self.card_handler.handle_jerry_dice(player_obj, [die], is_gold=False)
                 else:
                     die_roll = roll_dice(die)
                     # Update dice_in_play with detailed roll results

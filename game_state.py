@@ -26,6 +26,8 @@ class GameState:
 
         # Example score calculation logic
         player_obj.score = sum(value for _, value in player_obj.dice_in_play)
+        player_obj.score += sum(value for _, value in player_obj.gold_dice)
+
         for card in player_obj.cards_in_play:
             # Handle bonuses on the card
             for bonus in card.get("bonuses", []):
@@ -52,6 +54,7 @@ class GameState:
             cards_in_hand = len(player.hand)
             cards_in_play = ", ".join(card["name"] for card in player.cards_in_play)
             dice_in_play = ", ".join(f"{die}({value})" for die, value in player.dice_in_play)
+            gold_dice_in_play = ", ".join(f"{die}({value})" for die, value in player.gold_dice)
             treasure_count = len(player.treasure)
             minion_count = len(player.minions)
             game_state_message += "\n\n"
@@ -59,9 +62,10 @@ class GameState:
                 f"> Player: **{player.character.name}**\n"
                 f"> Cards in hand: {cards_in_hand}, Minions: {minion_count}, Treasures: {treasure_count}\n"
                 f"> Cards in play: {cards_in_play}\n"
-                f"> Dice in play: {dice_in_play}\n"
-                f"> Score: **{player.score}**"
-                )
+                f"> Dice in play: {dice_in_play}")
+            if gold_dice_in_play:
+                game_state_message += f".  Gold Dice: {gold_dice_in_play}"
+            game_state_message += f"\n> Score: **{player.score}**"
             if player == self.game_engine.player_obj_in_lead:
                 game_state_message += " (winning)"
 

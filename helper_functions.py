@@ -65,36 +65,54 @@ def determine_lead(player_objs, me):
 #
 #     return dice_list
 
-def get_dice_dict(game_engine, exclude_dice=[], only_char_name=[]):
-    if exclude_dice is None:
-        exclude_dice = list()
-    if exclude_dice is None:
-        exclude_dice = []
+def get_dice_dict(game_engine, exclude_dice=[], only_char_name=[], exclude_char_name=None, get_gold=False):
     dice_dict = {}
     for p_obj in get_all_player_objs(game_engine):
         character_name = p_obj.character.name
         print('car names', character_name, only_char_name)
-        if not only_char_name or character_name in only_char_name:
-            for idx, (die, value) in enumerate(p_obj.dice_in_play):
-                if not exclude_dice or die not in exclude_dice:
-                    dice_key = f"{character_name} {idx + 1}"
-                    from_av = 0
-                    if die == "D4":
-                        from_av = value - 2.5
-                    elif die == "D6":
-                        from_av = value - 3.5
-                    elif die == "D8":
-                        from_av = value - 4.5
-                    elif die == "D12":
-                        from_av = value - 6.5
+        if character_name != exclude_char_name:
+            if not only_char_name or character_name in only_char_name:
+                for idx, (die, value) in enumerate(p_obj.dice_in_play):
+                    if not exclude_dice or die not in exclude_dice:
+                        dice_key = f"{character_name} {idx + 1}"
+                        from_av = 0
+                        if die == "D4":
+                            from_av = value - 2.5
+                        elif die == "D6":
+                            from_av = value - 3.5
+                        elif die == "D8":
+                            from_av = value - 4.5
 
-                    dice_dict[dice_key] = {
-                        "index": idx,
-                        "character": character_name,
-                        "die_type": die,
-                        "value": value,
-                        "from_average": from_av,
-                    }
+                        dice_dict[dice_key] = {
+                            "index": idx,
+                            "character": character_name,
+                            "die_type": die,
+                            "value": value,
+                            "from_average": from_av,
+                        }
+
+                if get_gold:
+                    print('is gold')
+                    for idx, (die, value) in enumerate(p_obj.gold_dice):
+                        if not exclude_dice or die not in exclude_dice:
+                            dice_key = f"{character_name} {len(p_obj.dice_in_play) + idx + 1}"
+                            from_av = 0
+                            if die == "D4":
+                                from_av = value - 2.5
+                            elif die == "D6":
+                                from_av = value - 3.5
+                            elif die == "D8":
+                                from_av = value - 4.5
+                            elif die == "D12":
+                                from_av = value - 6.5
+
+                            dice_dict[dice_key] = {
+                                "index": idx,
+                                "character": character_name,
+                                "die_type": die,
+                                "value": value,
+                                "from_average": from_av,
+                            }
     return dice_dict
 
 

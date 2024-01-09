@@ -36,6 +36,8 @@ class PlayerManager:
                     new_player = Player(player_name, character_class(), discord_id)
                 new_player.deck = [card.copy() for card in character_class().deck]
                 new_player.deck = shuffle_deck(new_player.deck)
+                if new_player.character.name == "Tilda":
+                    new_player.deck.append(character_class().gold_card)
                 self.players[player_name] = new_player
                 self.current_players += 1
                 await send_public_message(self.game_engine, f"{player_name} chose {character_name}.")
