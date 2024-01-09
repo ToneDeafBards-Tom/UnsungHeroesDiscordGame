@@ -99,13 +99,15 @@ class GameEngine:
             print(player_name, player_obj, player_obj.character)
             for die in player_obj.character.starting_roll:
                 if player_obj.character.name == "Jerry":
-                    bonuses = await self.card_handler.handle_jerry_dice(player_obj, [die], is_gold=False)
+                    await self.card_handler.handle_jerry_dice(player_obj, [die], is_gold=False)
                 else:
                     die_roll = roll_dice(die)
                     # Update dice_in_play with detailed roll results
                     player_obj.dice_in_play.extend([(die, die_roll)])
+                    await send_public_message(self, f"\n{player_name} rolled {die} and got {die_roll}.")
                     if die_roll == 1 and player_obj.character.name == "Wanda":
-                        round_message += add_wanda_die(player_obj, die)
+                        round_message = add_wanda_die(player_obj, die)
+                        await send_public_message(self, round_message)
 
             for minion in player_obj.minions:
                 for bonus in minion.bonus:

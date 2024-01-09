@@ -38,10 +38,12 @@ class CardHandler:
         if not bonuses:
             return response  # This could be an error message.
 
+        last_card_played = None
+        last_player_obj = None
         if "Nope" in bonuses:
-            last_player = get_player_obj(self.game_engine, self.game_engine.game_state.last_player)
-            if last_player and last_player.cards_in_play:
-                last_card_played = last_player.cards_in_play[-1]
+            last_player_obj = get_player_obj(self.game_engine, self.game_engine.game_state.last_player)
+            if last_player_obj and last_player_obj.cards_in_play:
+                last_card_played = last_player_obj.cards_in_play[-1]
                 if ("Gold Card" in last_card_played.get('keyword', []) or
                         "Treasure" in last_card_played.get('keyword', [])):
                     await send_public_message(self.game_engine,
@@ -55,6 +57,8 @@ class CardHandler:
 
         if "Nope" in bonuses:
             player_obj.cards_in_play.append(card)
+            if "Defiant Laugh" in last_card_played.get('keyword', []):
+                bonuses = await self.handle_jerry_dice(last_player_obj, ["D6"], False)
 
         await self.finalize_card_play(player_obj, response)
         if pass_turn:
@@ -133,6 +137,8 @@ class CardHandler:
                 await self.prompt_reuse_ability(player_name, reuse_any=True, is_gold=is_gold)
             elif "Reuse" in bonus:
                 await self.prompt_reuse_ability(player_name, reuse_any=False, is_gold=is_gold)
+            elif "Swap" in bonus:
+                await self.prompt_swap_dice(player_name)
             elif "Die@4" in bonus:
                 await self.prompt_set_die_value(player_name, 4)
             elif "D4@2" in bonus:
@@ -243,7 +249,8 @@ class CardHandler:
         # Step 3: If confirmed, reroll the dice
         if confirmation.lower() == 'yes':
             for key, dice_info in dice_dict.items():
-                new_value = roll_dice(dice_info['die_type'])  # Assuming roll_dice function returns a new value for the die
+                new_value = roll_dice(
+                    dice_info['die_type'])  # Assuming roll_dice function returns a new value for the die
                 rr_player_name = get_player_name_by_character(self.game_engine, dice_info["character"])
                 rr_play_obj = get_player_obj(self.game_engine, rr_player_name)
                 rr_play_obj.dice_in_play[dice_info["index"]] = (dice_info["die_type"], new_value)
@@ -355,46 +362,56 @@ class CardHandler:
         selected_player_obj.discard.pop(selected_index)
         await self.play_card(player_name, len(player_obj.hand), pass_turn=False)
 
-    async def prompt_swap_dice(self, game_engine, player):
+    async def prompt_swap_dice(self, player_name):
+        player_obj = get_player_obj(self.game_engine, player_name)
         # List all dice from all players except the requesting player
         dice_dict = get_dice_dict(self.game_engine)
 
         # Prompt for the first die to swap
-        first_die_info = await self.prompt_for_die_selection(game_engine, player, dice_dict, "Choose the first die to swap:")
-        if not first_die_info:
+        first_die_key = await self.prompt_for_die_selection(player_obj, dice_dict, "Choose the first die to swap:")
+        if not first_die_key:
             return "No selection made for the first die."
+        first_die_info = dice_dict[first_die_key]
 
-        # Exclude the first selected die from the next selection
-        dice_dict.pop(first_die_info['key'])
+        for key in list(dice_dict.keys()):
+            if first_die_info['character'] in key:
+                del dice_dict[key]
 
         # Prompt for the second die to swap
-        second_die_info = await self.prompt_for_die_selection(game_engine, player, dice_dict,
-                                                         "Choose the second die to swap:")
-        if not second_die_info:
+        second_die_key = await self.prompt_for_die_selection(player_obj, dice_dict,
+                                                             "Choose the second die to swap:")
+        if not second_die_key:
             return "No selection made for the second die."
-
+        second_die_info = dice_dict[second_die_key]
         # Perform the swap
-        self.swap_dice(game_engine, first_die_info, second_die_info)
-        return f"Swapped dice between {first_die_info['character']} and {second_die_info['character']}."
+        print(first_die_info)
+        print(second_die_info)
+        await self.swap_dice(first_die_info, second_die_info)
 
-    async def prompt_for_die_selection(self, game_engine, player, dice_dict, prompt_message):
+    async def prompt_for_die_selection(self, player_obj, dice_dict, prompt_message):
         # Create a message listing the dice for the player to choose from
-        dice_list_message = "\n".join([f"{key}: {info['die']}({info['value']})" for key, info in dice_dict.items()])
+        dice_list_message = "\n".join([f"{key}: {info['die_type']}({info['value']})" for key, info in dice_dict.items()])
         full_message = prompt_message + "\n" + dice_list_message
-        selected_key = await send_dm(game_engine, player, full_message, need_response=True, double=False)
+        die_key = await send_dm(self.game_engine, player_obj, full_message, need_response=True, double=False)
+        return die_key
 
-        # Find and return the selected die information
-        selected_die_info = dice_dict.get(selected_key)
-        return selected_die_info
-
-    def swap_dice(self, game_engine, first_die_info, second_die_info):
+    async def swap_dice(self, first_die_info, second_die_info):
         # Retrieve the player objects
-        first_player = get_player_obj(game_engine, first_die_info['character'])
-        second_player = get_player_obj(game_engine, second_die_info['character'])
+        first_char_name = first_die_info['character']
+        first_play_name = get_player_name_by_character(self.game_engine, first_char_name)
+        first_play_obj = get_player_obj(self.game_engine, first_play_name)
+        second_char_name = second_die_info['character']
+        second_play_name = get_player_name_by_character(self.game_engine, second_char_name)
+        second_play_obj = get_player_obj(self.game_engine, second_play_name)
 
         # Swap the dice
-        first_player.dice_in_play[first_die_info['index']], second_player.dice_in_play[second_die_info['index']] = \
-            second_player.dice_in_play[second_die_info['index']], first_player.dice_in_play[first_die_info['index']]
+        (first_play_obj.dice_in_play[first_die_info['index']],
+         second_play_obj.dice_in_play[second_die_info['index']]) = \
+            (second_play_obj.dice_in_play[second_die_info['index']],
+             first_play_obj.dice_in_play[first_die_info['index']])
+
+        message = (f"Swapped {first_die_info['character']}'s {first_die_info['die_type']}({first_die_info['value']} and"
+                   f" {second_die_info['character']}'s {second_die_info['die_type']}({second_die_info['value']}.")
 
     async def redistribute_dice(self, player_name):
         player_obj = get_player_obj(self.game_engine, player_name)
@@ -474,60 +491,4 @@ class CardHandler:
 
         return bonuses
 
-    async def swap_dice(self, player_name):
-        player_requesting = self.players.get(player_name)
-        if not player_requesting:
-            await self.send_dm(player_requesting.discord_id, "You are not in the game.")
-            return
 
-        # Prompt the player to choose a die from two different players
-        # Step 1: Choose the first die
-        first_die_info = await self.choose_die_for_swap(player_requesting,
-                                                        "Choose the first die to swap (format: PlayerName DieNumber):")
-        if not first_die_info:
-            return  # Handle invalid selection or cancellation
-
-        # Step 2: Choose the second die
-        second_die_info = await self.choose_die_for_swap(player_requesting,
-                                                         "Choose the second die to swap (format: PlayerName DieNumber):")
-        if not second_die_info:
-            return  # Handle invalid selection or cancellation
-
-        # Perform the swap
-        self.perform_die_swap(first_die_info, second_die_info)
-        await self.send_dm(player_requesting.discord_id, "Dice have been swapped.")
-
-    async def choose_die_for_swap(self, player_requesting, prompt_message):
-        # List all dice from all players
-        dice_list = self.get_all_dice_list()
-
-        # Send the prompt message
-        await self.send_dm(player_requesting.discord_id, prompt_message + "\n" + dice_list)
-
-        # Define check for response
-        def check(m):
-            return m.author.id == player_requesting.discord_id and m.channel.type == discord.ChannelType.private
-
-        try:
-            response = await self.bot.wait_for('message', check=check, timeout=60.0)
-            selected_player_name, selected_index = response.content.strip().split()
-            selected_index = int(selected_index) - 1
-            selected_player = self.players.get(selected_player_name)
-            selected_die = selected_player.dice_in_play[selected_index]
-            return selected_player, selected_die
-        except (IndexError, ValueError, asyncio.TimeoutError):
-            await self.send_dm(player_requesting.discord_id, "Invalid selection or timeout.")
-            return None
-
-    def perform_die_swap(self, first_die_info, second_die_info):
-        # Extract the player and die information
-        first_player, first_die = first_die_info
-        second_player, second_die = second_die_info
-
-        # Remove the dice from the original owners
-        first_player.dice_in_play.remove(first_die)
-        second_player.dice_in_play.remove(second_die)
-
-        # Swap the dice
-        first_player.dice_in_play.append(second_die)
-        second_player.dice_in_play.append(first_die)

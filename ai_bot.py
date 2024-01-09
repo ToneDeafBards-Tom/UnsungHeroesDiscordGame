@@ -94,6 +94,7 @@ class AIBot(Player):
 
     def get_values_cards(self):
         dice_dict = get_dice_dict(self.game_engine)
+        print("ai", dice_dict)
 
         # get dict of values
         new_values_dict = {}

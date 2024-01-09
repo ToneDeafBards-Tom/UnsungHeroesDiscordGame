@@ -1,5 +1,7 @@
 import random
 import asyncio
+import time
+
 import discord
 
 
@@ -11,6 +13,7 @@ def shuffle_deck(deck, player_name=None):
 
 
 def roll_dice(die):
+    time.sleep(.05)
     if die == "D4":
         return random.randint(1, 4)
     elif die == "D6":
@@ -34,6 +37,10 @@ def get_player_obj(game_engine, player_name):
 def get_all_player_objs(game_engine):
     player_objs = [game_engine.player_manager.players.get(player_name) for player_name in
                    game_engine.player_manager.players]
+
+    # Sort the list so that "Jerry" comes last
+    player_objs = sorted(player_objs, key=lambda player: player.character.name == "Jerry")
+
     return player_objs
 
 
