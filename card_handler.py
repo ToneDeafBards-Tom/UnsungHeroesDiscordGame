@@ -191,9 +191,9 @@ class CardHandler:
             if reroll_any:
                 dice_dict.update(get_dice_dict(self.game_engine, exclude_char_name=player_name))
 
-        prompt_message = create_dice_prompt_message(dice_dict, "Reroll")
+        prompt_message, user_choices = create_dice_prompt_message(dice_dict, "Reroll")
         selected_character, selected_index = await send_dm(self.game_engine, player_obj, prompt_message,
-                                                           need_response=True)
+                                                           user_choices=user_choices, need_response=True)
         # Translate character name back to player name
         if selected_index == "NA":
             await send_public_message(self.game_engine, f"\n{player_name} declined the reroll.")

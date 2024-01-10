@@ -1,6 +1,5 @@
 from player import Player
-from helper_functions import (send_dm, send_public_message, shuffle_deck, get_player_obj,
-                              construct_hand_message, construct_minion_message, construct_treasure_message)
+from helper_functions import (send_dm, send_public_message, shuffle_deck, get_player_obj)
 
 from characters.alfred import Alfred
 from characters.wanda import Wanda
@@ -61,12 +60,50 @@ class PlayerManager:
         if not player_obj:
             return f"{player_name}, you need to choose a character first."
 
-        hand_message = construct_hand_message(player_obj)
-        minion_message = construct_minion_message(player_obj)
-        treasure_message = construct_treasure_message(player_obj, self.game_engine.is_final_round)
+        hand_message = self.construct_hand_message(player_obj)
+        minion_message = self.construct_minion_message(player_obj)
+        treasure_message = self.construct_treasure_message(player_obj, self.game_engine.is_final_round)
 
         full_message = f"*** New Hand ***\n{hand_message}{minion_message}{treasure_message}"
         await send_dm(self.game_engine, player_obj, full_message)
+
+    def construct_hand_message(self, player_obj):
+        if player_obj.hand:
+            return "Cards:\n" + "\n".join(
+                f"{idx + 1} - {card['name']}, {card['bonuses']}" for idx, card in enumerate(player_obj.hand)
+            )
+        return ""
+
+    def construct_minion_message(self, player_obj):
+        if player_obj.used_minions or player_obj.minions:
+            message = "\n\nMinions:\n"
+            message += "\n".join(
+                f"{idx + 1 + len(player_obj.hand)} - {minion.name}, {minion.bonus}" for idx, minion in
+                enumerate(player_obj.minions)
+            )
+            if player_obj.used_minions and player_obj.minions:
+                message += "\n"
+            message += "\n".join(
+                f"Used: {minion.name}, {minion.bonus}" for idx, minion in enumerate(player_obj.used_minions)
+            )
+            return message
+        return ""
+
+    def construct_treasure_message(self, player_obj, final_round):
+        if player_obj.treasure:
+            message = "\n\nTreasures:\n"
+            if final_round:
+                message += "\n".join(
+                    f"{idx + 1 + len(player_obj.hand) + len(player_obj.minions)} - {card['name']}, {card['bonuses']}" for
+                    idx, card
+                    in enumerate(player_obj.treasure)
+                )
+            else:
+                message += "\n".join(
+                    f"{card['name']}, {card['bonuses']}" for idx, card in enumerate(player_obj.treasure)
+                )
+            return message
+        return ""
 
     async def player_choose_treasure(self, player_name, treasures):
         player_obj = get_player_obj(self.game_engine, player_name)

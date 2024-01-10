@@ -3,6 +3,7 @@ import asyncio
 import time
 
 import discord
+from fuzzywuzzy import process
 
 
 def shuffle_deck(deck, player_name=None):
@@ -125,10 +126,14 @@ def get_dice_dict(game_engine, exclude_dice=[], only_char_name=[], exclude_char_
 
 def create_dice_prompt_message(dice_dict, bonus):
     prompt_message = f"Choose a die to {bonus} (format: CharacterName DieNumber):\n"
+    user_choices = []
     for key, dice_info in dice_dict.items():
         prompt_message += f"{key} - {dice_info['die_type']}({dice_info['value']})\n"
+        user_choices.append(key)
     prompt_message += f"NA NA - For None\n"
-    return prompt_message
+    user_choices.append("NA NA")
+    print('user_choices', user_choices)
+    return prompt_message, user_choices
 
 
 # For sending public messages
@@ -137,7 +142,7 @@ async def send_public_message(game_engine, message):
 
 
 # For sending DMs
-async def send_dm(game_engine, player_obj, message, need_response=False, double=True):
+async def send_dm(game_engine, player_obj, message, user_choices=[], need_response=False, double=True):
     discord_id = player_obj.discord_id
     if discord_id != "Bot":
         user = await game_engine.bot.fetch_user(discord_id)
@@ -173,9 +178,11 @@ async def send_dm(game_engine, player_obj, message, need_response=False, double=
                     await dm_channel.send(f"You have {int(remaining)}s left to respond.")
 
                 response = await game_engine.bot.wait_for('message', check=check, timeout=1)
-                print('DM', response)
+                response = response.content.strip()
+                if user_choices:
+                    response = clean_input(response, user_choices)
                 if double:
-                    selected_character, selected_index = response.content.strip().split()
+                    selected_character, selected_index = response.split()
                     if selected_character == "NA":
                         return selected_character, selected_index
                     selected_index = int(selected_index) - 1
@@ -188,37 +195,12 @@ async def send_dm(game_engine, player_obj, message, need_response=False, double=
         return None
 
 
-def construct_hand_message(player_obj):
-    return "Cards:\n" + "\n".join(
-        f"{idx + 1} - {card['name']}, {card['bonuses']}" for idx, card in enumerate(player_obj.hand)
-    )
-
-
-def construct_minion_message(player_obj):
-    message = "\n\nMinions:\n"
-    message += "\n".join(
-        f"{idx + 1 + len(player_obj.hand)} - {minion.name}, {minion.bonus}" for idx, minion in
-        enumerate(player_obj.minions)
-    )
-    if player_obj.used_minions and player_obj.minions:
-        message += "\n"
-    message += "\n".join(
-        f"Used: {minion.name}, {minion.bonus}" for idx, minion in enumerate(player_obj.used_minions)
-    )
-    return message
-
-
-def construct_treasure_message(player_obj, final_round):
-    message = "\n\nTreasures:\n"
-    if final_round:
-        message += "\n".join(
-            f"{idx + 1 + len(player_obj.hand) + len(player_obj.minions)} - {card['name']}, {card['bonuses']}" for
-            idx, card
-            in enumerate(player_obj.treasure)
-        )
-    else:
-        message += "\n".join(
-            f"{card['name']}, {card['bonuses']}" for idx, card in enumerate(player_obj.treasure)
-        )
-    return message
-
+def clean_input(user_input, user_choices):
+    closest_match, score = process.extractOne(user_input, user_choices)
+    # You might want to check the score here to see if it's high enough to be considered a match.
+    # For example, you could only accept matches where the score is above 80.
+    # if score > 74:
+    print('closest match', closest_match, score)
+    return closest_match
+    # else:
+    #     return None
